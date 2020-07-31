@@ -22,16 +22,21 @@ LIBS     = -lHYPRE -lm -lgsl -lgslcblas -shlib -lstdc++
 LFLAGS   = $(LINKOPTS) $(LIBS)
 
 # List of all programs to be compiled
-
 EXE = poisson disk_logr disk_xy noisy_unif noisy_disk general_xy
 
 SRC := $(addprefix $(SRC_DIR)/,main.c hdf5_utils.c model_%.c param_%.c)
 OBJ := $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+SRCM := $(addprefix $(SRC_DIR)/,main_matrices.c hdf5_utils.c model_%.c param_%.c)
+OBJM := $(SRCM:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 all: $(EXE)
 
 $(EXE): %: $(OBJ)
 	$(CC) $(LDFLAGS) $^ $(LFLAGS) -o $@
+
+matrices: %: $(OBJM)
+	$(CC) $(LDFLAGS) $^ $(LFLAGS) -o $@
+
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
