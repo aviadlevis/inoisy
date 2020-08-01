@@ -238,6 +238,7 @@ int main (int argc, char *argv[])
 	printf("  -solver <ID>           : solver ID\n");
 	printf("                           0  - PCG with SMG precond (default)\n");
 	printf("                           1  - SMG\n");
+    printf("                           2  - Compute A*x matrix multiplication\n");
 	printf("  -v <n_pre> <n_post>    : Number of pre and post relaxations (default: 1 1).\n");
 	printf("  -dryrun                : Run solver w/o data output.\n");
 	printf("  -params <file> (or -p) : Read in parameters from <file>.\n");
@@ -489,11 +490,11 @@ int main (int argc, char *argv[])
       HYPRE_StructPCGGetNumIterations(solver, &num_iterations);
       HYPRE_StructPCGGetFinalRelativeResidualNorm(solver, &final_res_norm);
 
-      if (myid == 0) {
-	printf("\n");
-	printf("Iterations = %d\n", num_iterations);
-	printf("Final Relative Residual Norm = %g\n", final_res_norm);
-	printf("\n");
+      if ( (myid == 0) && (verbose > 0) ) {
+        printf("\n");
+        printf("Iterations = %d\n", num_iterations);
+        printf("Final Relative Residual Norm = %g\n", final_res_norm);
+        printf("\n");
       }	
     }
     
@@ -522,47 +523,48 @@ int main (int argc, char *argv[])
       HYPRE_StructSMGSolve(solver, A, b, x);
 
       if (j < num_recursions - 1) {
-	int    nvalues = ni * nj * nk;
-	double *values;
+        int    nvalues = ni * nj * nk;
+        double *values;
+
+        values = (double*) calloc(nvalues, sizeof(double));
+
+        HYPRE_StructVectorGetBoxValues(x, ilower, iupper, values);
+
+        if (dump) {
+          hsize_t fdims[3]  = {npk * nk, npj * nj, npi * ni};
+          hsize_t fstart[3] = {pk * nk, pj * nj, pi * ni};
+          hsize_t fcount[3] = {nk, nj, ni};
+          hsize_t mdims[3]  = {nk, nj, ni};
+          hsize_t mstart[3] = {0, 0, 0};
+
+          char step[255];
+          sprintf(step, "step_%d", j);
+
+          hdf5_write_array(values, step, 3, fdims, fstart, fcount,
+                   mdims, mstart, H5T_NATIVE_DOUBLE);
+        }
+
+        HYPRE_StructVectorSetBoxValues(b, ilower, iupper, values);
 	
-	values = (double*) calloc(nvalues, sizeof(double));
+        for (i = 0; i < nvalues; i ++)
+          values[i] = 0.0;
+        // TODO see if setting _xnew to x_old is better than 0.0
+        HYPRE_StructVectorSetBoxValues(x, ilower, iupper, values);
 
-	HYPRE_StructVectorGetBoxValues(x, ilower, iupper, values);  
+        // TODO create option to print successive steps
 
-	if (dump) {
-	  hsize_t fdims[3]  = {npk * nk, npj * nj, npi * ni};
-	  hsize_t fstart[3] = {pk * nk, pj * nj, pi * ni};
-	  hsize_t fcount[3] = {nk, nj, ni};
-	  hsize_t mdims[3]  = {nk, nj, ni};
-	  hsize_t mstart[3] = {0, 0, 0};
+        free(values);
 
-	  char step[255];
-	  sprintf(step, "step_%d", j);
-	  
-	  hdf5_write_array(values, step, 3, fdims, fstart, fcount,
-			   mdims, mstart, H5T_NATIVE_DOUBLE);
-	}
-
-	HYPRE_StructVectorSetBoxValues(b, ilower, iupper, values);
-	
-	for (i = 0; i < nvalues; i ++)
-	  values[i] = 0.0;
-	// TODO see if setting _xnew to x_old is better than 0.0
-	HYPRE_StructVectorSetBoxValues(x, ilower, iupper, values);
-
-	// TODO create option to print successive steps
-	
-	free(values);
-	
-	HYPRE_StructVectorAssemble(b);
-	HYPRE_StructVectorAssemble(x);
+        HYPRE_StructVectorAssemble(b);
+        HYPRE_StructVectorAssemble(x);
       }
       
       /* Get some info on the run */
       HYPRE_StructSMGGetNumIterations(solver, &num_iterations);
       HYPRE_StructSMGGetFinalRelativeResidualNorm(solver, &final_res_norm);
-      
-      if ( (myid == 0) && (verbose > 0) ){
+
+
+      if ( (myid == 0) && (verbose > 0) ) {
         printf("\n");
         printf("Iterations = %d\n", num_iterations);
         printf("Final Relative Residual Norm = %g\n", final_res_norm);
@@ -573,7 +575,12 @@ int main (int argc, char *argv[])
     /* Clean up */
     HYPRE_StructSMGDestroy(solver);
   }
-  
+
+  /* Matrix - vector multiplication */
+  if (solver_id == 2) {
+    HYPRE_StructMatrixMatvec(1.0, A, b, 0.0, x);
+  }
+
   check_t = clock();
   if ( (myid == 0) && (timer) )
     printf("Solver finished: t = %lf\n\n",
