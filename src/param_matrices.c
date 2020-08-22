@@ -3,9 +3,9 @@
 
 /* Read in parameters from input file */
 void param_read_params_matrices(char* filename, int ni, int nj, int pi, int pj, int npi, int npj,
-                              double *param_r12,  double spatial_angle_image[ni][nj],
-                              double vx[ni][nj],  double vy[ni][nj], double correlation_time_image[ni][nj],
-                              double correlation_length_image[ni][nj])
+                               double *param_r12,  double spatial_angle_image[ni][nj],
+                               double vx[ni][nj],  double vy[ni][nj], double correlation_time_image[ni][nj],
+                               double correlation_length_image[ni][nj])
 {
     /* hdf5_utils accesses a single global file at a time */
     hdf5_open(filename);
@@ -56,7 +56,6 @@ static void set_u0_matrices(double* u0, double x0, double x1, double x2, double 
 /* unit vectors in direction of major and minor axes */
 static void set_u1_u2_matrices(double* u1, double* u2, double x0, double x1, double x2, double theta)
 {
-
   u1[0] = 0.;
   u2[0] = 0.;
 
@@ -101,6 +100,29 @@ static void set_h_matrices(double h[3][3], double x0, double x1, double x2, doub
   }
 }
 
+static void set_h_matrices_spatial_angle_derivative(double h[3][3], double x0, double x1, double x2, double param_r12,
+                  double spatial_angle, double vx, double vy, double correlation_time, double correlation_length, double adjoint)
+{
+  int i, j;
+  double u0[3], u1[3], u2[3];
+
+  set_u0_matrices(u0, x0, x1, x2, vx, vy);
+  set_u1_u2_matrices(u1, u2, x0, x1, x2, spatial_angle);
+
+  double lam1, lam2; /* temporal, major, minor correlation lengths */
+
+  lam1 = correlation_length;
+  lam2 = param_r12 * lam1;
+  /* Derivatives with respect to the spatial angle
+     d(sinx) = cosx ; d(cosx) = -sinx:  u1 --> u2, u2 --> -u1  */
+  for (i = 0; i < 3; i++) {
+    for (j = 0; j < 3; j++) {
+      h[i][j] = adjoint * lam1 * lam1 * (u2[i]*u1[j] + u1[i]*u2[j]) -
+                adjoint * lam2 * lam2 * (u1[i]*u2[j] + u2[i]*u1[j]);
+    }
+  }
+}
+
 
 /* dh[0][2][1] = dh[0][2]/dx[1] */
 static void set_dh_matrices(double dh[][3][3], double x0, double x1, double x2,
@@ -115,15 +137,42 @@ static void set_dh_matrices(double dh[][3][3], double x0, double x1, double x2,
   double hm[3][3][3], hp[3][3][3];
   set_h_matrices(hm[0], x0 - dx0, x1, x2, param_r12, spatial_angle[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)], vx[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)], vy[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)], correlation_time[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)], correlation_length[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)]);
   set_h_matrices(hp[0], x0 + dx0, x1, x2, param_r12, spatial_angle[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)], vx[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)], vy[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)], correlation_time[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)], correlation_length[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)]);
-  set_h_matrices(hm[1], x0, x1 - dx1, x2, param_r12, spatial_angle[min(max(gridi,0), ni-1)][min(max(gridj-1,0), nj-1)], vx[min(max(gridi,0), ni-1)][min(max(gridj-1,0), nj-1)], vy[min(max(gridi,0), ni-1)][min(max(gridj-1,0), nj-1)], correlation_time[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)], correlation_length[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)]);
-  set_h_matrices(hp[1], x0, x1 + dx1, x2, param_r12, spatial_angle[min(max(gridi,0), ni-1)][min(max(gridj+1,0), nj-1)], vx[min(max(gridi,0), ni-1)][min(max(gridj+1,0), nj-1)], vy[min(max(gridi,0), ni-1)][min(max(gridj+1,0), nj-1)], correlation_time[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)], correlation_length[min(max(gridi,0), ni-1)][min(max(gridj,0), nj-1)]);
+  set_h_matrices(hm[1], x0, x1 - dx1, x2, param_r12, spatial_angle[min(max(gridi,0), ni-1)][min(max(gridj-1,0), nj-1)], vx[min(max(gridi,0), ni-1)][min(max(gridj-1,0), nj-1)], vy[min(max(gridi,0), ni-1)][min(max(gridj-1,0), nj-1)], correlation_time[min(max(gridi,0), ni-1)][min(max(gridj-1,0), nj-1)], correlation_length[min(max(gridi,0), ni-1)][min(max(gridj-1,0), nj-1)]);
+  set_h_matrices(hp[1], x0, x1 + dx1, x2, param_r12, spatial_angle[min(max(gridi,0), ni-1)][min(max(gridj+1,0), nj-1)], vx[min(max(gridi,0), ni-1)][min(max(gridj+1,0), nj-1)], vy[min(max(gridi,0), ni-1)][min(max(gridj+1,0), nj-1)], correlation_time[min(max(gridi,0), ni-1)][min(max(gridj+1,0), nj-1)], correlation_length[min(max(gridi,0), ni-1)][min(max(gridj+1,0), nj-1)]);
   set_h_matrices(hm[2], x0, x1, x2 - dx2, param_r12, spatial_angle[min(max(gridi-1,0), ni-1)][min(max(gridj,0), nj-1)], vx[min(max(gridi-1,0), ni-1)][min(max(gridj,0), nj-1)], vy[min(max(gridi-1,0), ni-1)][min(max(gridj,0), nj-1)], correlation_time[min(max(gridi-1,0), ni-1)][min(max(gridj,0), nj-1)], correlation_length[min(max(gridi-1,0), ni-1)][min(max(gridj,0), nj-1)]);
   set_h_matrices(hp[2], x0, x1, x2 + dx2, param_r12, spatial_angle[min(max(gridi+1,0), ni-1)][min(max(gridj,0), nj-1)], vx[min(max(gridi+1,0), ni-1)][min(max(gridj,0), nj-1)], vy[min(max(gridi+1,0), ni-1)][min(max(gridj,0), nj-1)], correlation_time[min(max(gridi+1,0), ni-1)][min(max(gridj,0), nj-1)], correlation_length[min(max(gridi+1,0), ni-1)][min(max(gridj,0), nj-1)]);
 
   for (i = 0; i < 3; i++)
     for (j = 0; j < 3; j++)
       for (k = 0; k < 3; k++)
-	dh[i][j][k] = 0.5 * ( hp[k][i][j] - hm[k][i][j] ) / dx[k];
+	    dh[i][j][k] = 0.5 * ( hp[k][i][j] - hm[k][i][j] ) / dx[k];
+}
+
+static void set_dh_matrices_spatial_angle_derivative(double dhm[][3][3], double dhp[][3][3], double x0, double x1, double x2,
+		   double dx0, double dx1, double dx2, double param_r12, int ni, int nj, int nk, double spatial_angle[ni][nj],
+		   double vx[ni][nj], double vy[ni][nj], double correlation_time[ni][nj], double correlation_length[ni][nj], int gridi, int gridj, int gridk, double adjoint[nk][nj][ni])
+{
+  int i, j, k;
+
+  double dx[3] = {dx0, dx1, dx2};
+
+  /* hm[0][2][1] = h(x0 - dx0, x1, x2)[2][1] */
+  double hm[3][3][3], hp[3][3][3];
+  set_h_matrices_spatial_angle_derivative(hm[0], x0 - dx0, x1, x2, param_r12, spatial_angle[gridi][gridj], vx[gridi][gridj], vy[gridi][gridj], correlation_time[gridi][gridj], correlation_length[gridi][gridj], adjoint[gridk+1][gridj][gridi]);
+  set_h_matrices_spatial_angle_derivative(hp[0], x0 + dx0, x1, x2, param_r12, spatial_angle[gridi][gridj], vx[gridi][gridj], vy[gridi][gridj], correlation_time[gridi][gridj], correlation_length[gridi][gridj], adjoint[gridk-1][gridj][gridi]);
+  set_h_matrices_spatial_angle_derivative(hm[1], x0, x1 - dx1, x2, param_r12, spatial_angle[gridi][gridj], vx[gridi][gridj], vy[gridi][gridj], correlation_time[gridi][gridj], correlation_length[gridi][gridj], adjoint[gridk][gridj+1][gridi]);
+  set_h_matrices_spatial_angle_derivative(hp[1], x0, x1 + dx1, x2, param_r12, spatial_angle[gridi][gridj], vx[gridi][gridj], vy[gridi][gridj], correlation_time[gridi][gridj], correlation_length[gridi][gridj], adjoint[gridk][gridj-1][gridi]);
+  set_h_matrices_spatial_angle_derivative(hm[2], x0, x1, x2 - dx2, param_r12, spatial_angle[gridi][gridj], vx[gridi][gridj], vy[gridi][gridj], correlation_time[gridi][gridj], correlation_length[gridi][gridj], adjoint[gridk][gridj][gridi+1]);
+  set_h_matrices_spatial_angle_derivative(hp[2], x0, x1, x2 + dx2, param_r12, spatial_angle[gridi][gridj], vx[gridi][gridj], vy[gridi][gridj], correlation_time[gridi][gridj], correlation_length[gridi][gridj], adjoint[gridk][gridj][gridi-1]);
+
+  for (i = 0; i < 3; i++)
+    for (j = 0; j < 3; j++)
+      for (k = 0; k < 3; k++) {
+	    dhm[i][j][k] = 0.5 * hm[k][i][j] / dx[k];
+	    dhp[i][j][k] = 0.5 * hp[k][i][j] / dx[k];
+        //printf(" \n TEST: gridk = %d, gridj = %d, gridi = %d, dh[%d][%d][%d] = %.20f, hp[%d][%d][%d] = %.20f, hm[%d][%d][%d] = %.20f \n",
+          // gridk, gridj, gridi, i, j, k, dh[i][j][k], i, j, k, hp[i][j][k], i, j, k, hm[i][j][k]);
+       }
 }
 
 
@@ -157,5 +206,62 @@ void param_coeff_matrices(double* coeff, double x0, double x1, double x2, double
   coeff[9] = -2. * ( coeff[0] + coeff[2] + coeff[5] ) + ksq(x0, x1, x2);
 }
 
+void param_coeff_matrices_spatial_angle_derivative(double* dvalues, double x0, double x1, double x2, double dx0, double dx1, double dx2,
+                 double param_r12, int ni, int nj, int nk, double spatial_angle[ni][nj], double vx[ni][nj], double vy[ni][nj],
+                 double correlation_time[ni][nj], double correlation_length[ni][nj], int gridi, int gridj, int gridk, double adjoint[nk][nj][ni])
+{
+  double h[3][3], dhm[3][3][3], dhp[3][3][3];
+  double coeff[10];
+  set_h_matrices_spatial_angle_derivative(h, x0, x1, x2, param_r12, spatial_angle[gridi][gridj], vx[gridi][gridj], vy[gridi][gridj], correlation_time[gridi][gridj], correlation_length[gridi][gridj], adjoint[gridk][gridj][gridi]);
+  set_dh_matrices_spatial_angle_derivative(dhm, dhp, x0, x1, x2, dx0, dx1, dx2, param_r12, ni, nj, nk, spatial_angle, vx, vy, correlation_time, correlation_length, gridi, gridj, gridk, adjoint);
+
+  /* dy^2 */
+  coeff[0] = -h[2][2] / (dx2 * dx2);
+  /* dydx */
+  coeff[1] = -0.5 * h[1][2] / (dx1 * dx2);
+  /* dx^2 */
+  coeff[2] = -h[1][1] / (dx1 * dx1);
+  /* dydt */
+  coeff[3] = -0.5 * h[0][2] / (dx0 * dx2);
+  /* dxdt */
+  coeff[4] = -0.5 * h[0][1] / (dx0 * dx1);
+  /* dt^2 */
+  coeff[5] = -h[0][0] / (dx0 * dx0);
+  /* dy */
+  // coeff[6] = -0.5 * ( dh[0][2][0] + dh[1][2][1] + dh[2][2][2] ) / dx2;
+  /* dx */
+  // coeff[7] = -0.5 * ( dh[0][1][0] + dh[1][1][1] + dh[2][1][2] ) / dx1;
+  /* dt */
+  // coeff[8] = -0.5 * ( dh[0][0][0] + dh[1][0][1] + dh[2][0][2] ) / dx0;
+  /* const */
+  coeff[9] = -2. * ( coeff[0] + coeff[2] + coeff[5] );
+
+
+  dvalues[0] =   coeff[9] - 0.5 * (dhp[1][1][1]/dx1 + dhm[1][1][1]/dx1 + dhp[2][2][2]/dx2 + dhm[2][2][2]/dx2);
+  dvalues[1] =   coeff[0];
+  dvalues[2] =   coeff[0];
+  dvalues[3] =   coeff[2];
+  dvalues[4] =   coeff[2];
+  dvalues[5] =   coeff[5];
+  dvalues[6] =   coeff[5];
+  dvalues[7] =   coeff[1] - 0.5 * (-dhp[1][2][1]/dx2 - dhp[2][1][2]/dx1);
+  dvalues[8] =  -coeff[1] - 0.5 * (dhp[1][2][1]/dx2 + dhm[2][1][2]/dx1);
+  dvalues[9] =   coeff[1] - 0.5 * (-dhm[1][2][1]/dx2 - dhm[2][1][2]/dx1);
+  dvalues[10] = -coeff[1] - 0.5 * (dhm[1][2][1]/dx2 + dhp[2][1][2]/dx1);
+  dvalues[11] =  coeff[3] - 0.5 * (-dhp[0][2][0]/dx2 - dhp[1][0][1]/dx0);
+  dvalues[12] = -coeff[3] - 0.5 * (dhp[0][2][0]/dx2 + dhm[1][0][1]/dx0);
+  dvalues[13] =  coeff[4] - 0.5 * (-dhp[0][1][0]/dx1 - dhp[2][0][2]/dx0);
+  dvalues[14] = -coeff[4] - 0.5 * (dhp[0][1][0]/dx1 + dhm[2][0][2]/dx0);
+  dvalues[15] = -coeff[3] - 0.5 * (-dhm[0][2][0]/dx2 + dhp[1][0][1]/dx0);
+  dvalues[16] =  coeff[3] - 0.5 * (dhm[0][2][0]/dx2- dhm[1][0][1]/dx0);
+  dvalues[17] = -coeff[4] - 0.5 * (dhm[0][1][0]/dx1 + dhp[2][0][2]/dx0);
+  dvalues[18] =  coeff[4] - 0.5 * (-dhm[0][1][0]/dx1 - dhm[2][0][2]/dx0);
+  dvalues[19] = - 0.5 * (-dhp[2][2][2])/dx2;
+  dvalues[20] = - 0.5 * (-dhm[2][2][2])/dx2;
+  dvalues[21] = - 0.5 * (-dhp[1][1][1])/dx1;
+  dvalues[22] = - 0.5 * (-dhm[1][1][1])/dx1;
+  dvalues[23] = - 0.5 * (-dhp[0][0][0])/dx0;
+  dvalues[24] = - 0.5 * (-dhm[0][0][0])/dx0;
+}
 
 

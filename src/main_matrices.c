@@ -239,6 +239,7 @@ int main (int argc, char *argv[])
 	printf("                           0  - PCG with SMG precond (default)\n");
 	printf("                           1  - SMG\n");
     printf("                           2  - Compute A*x matrix multiplication\n");
+    printf("                           3  - Compute a gradient with respect to spatial angle\n");
 	printf("  -v <n_pre> <n_post>    : Number of pre and post relaxations (default: 1 1).\n");
 	printf("  -dryrun                : Run solver w/o data output.\n");
 	printf("  -params <file> (or -p) : Read in parameters from <file>.\n");
@@ -332,13 +333,42 @@ int main (int argc, char *argv[])
 	   (double)(check_t - start_t) / CLOCKS_PER_SEC);
 
   /* Initialize stencil and Struct Matrix, and set stencil values */
-  model_create_stencil(&stencil, 3);
+  if (solver_id != 3)
+    model_create_stencil(&stencil, 3);
+  else
+    model_create_stencil_spatial_derivative(&stencil, 3);
 
   HYPRE_StructMatrixCreate(MPI_COMM_WORLD, grid, stencil, &A);
   HYPRE_StructMatrixInitialize(A);
 
-  model_set_stencil_values_matrices(&A, ilower, iupper, ni, nj, nk, pi, pj, pk, dx0, dx1, dx2, param_r12,
+  int    nvalues = ni * nj * nk;
+  double *values;
+  values = (double*) calloc(nvalues, sizeof(double));
+
+  if (solver_id == 3) {
+      hdf5_open(source_ptr);
+      hdf5_set_directory("/data/");
+      hsize_t fdims[3]  = {npk * nk, npj * nj, npi * ni};
+      hsize_t fstart[3] = {pk * nk, pj * nj, pi * ni};
+      hsize_t fcount[3] = {nk, nj, ni};
+      hsize_t mdims[3]  = {nk, nj, ni};
+      hsize_t mstart[3] = {0, 0, 0};
+
+      hdf5_read_array(values, "adjoint", 3, fdims, fstart, fcount,
+		      mdims, mstart, H5T_NATIVE_DOUBLE);
+
+      model_set_stencil_values_matrices_spatial_angle_derivative(&A, ilower, iupper, ni, nj, nk, pi, pj, pk, dx0, dx1,
+			               dx2, param_r12, spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, values);
+
+      hdf5_read_array(values, "data_raw", 3, fdims, fstart, fcount,
+		      mdims, mstart, H5T_NATIVE_DOUBLE);
+
+      hdf5_close();
+  } else {
+      model_set_stencil_values_matrices(&A, ilower, iupper, ni, nj, nk, pi, pj, pk, dx0, dx1, dx2, param_r12,
 			               spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image);
+  }
+
   
   check_t = clock();
   if ( (myid == 0) && (timer) )
@@ -356,50 +386,45 @@ int main (int argc, char *argv[])
 	   (double)(check_t - start_t) / CLOCKS_PER_SEC);
 	
   /* Set up Struct Vectors for b and x */
-  {
-    int    nvalues = ni * nj * nk;
-    double *values;
-		
-    values = (double*) calloc(nvalues, sizeof(double));
-		
-    HYPRE_StructVectorCreate(MPI_COMM_WORLD, grid, &b);
-    HYPRE_StructVectorCreate(MPI_COMM_WORLD, grid, &x);
-		
-    HYPRE_StructVectorInitialize(b);
-    HYPRE_StructVectorInitialize(x);
-		
+  HYPRE_StructVectorCreate(MPI_COMM_WORLD, grid, &b);
+  HYPRE_StructVectorCreate(MPI_COMM_WORLD, grid, &x);
+
+  HYPRE_StructVectorInitialize(b);
+  HYPRE_StructVectorInitialize(x);
+
+  if (solver_id != 3) {
     /* Set the source term */
     if ( source_ptr == NULL )
-      param_set_source(values, rstate, ni, nj, nk, pi, pj, pk, npi, npj, npk,
-		       dx0, dx1, dx2, num_recursions);
+        param_set_source(values, rstate, ni, nj, nk, pi, pj, pk, npi, npj, npk,
+                        dx0, dx1, dx2, num_recursions);
     else {
-      hdf5_open(source_ptr);
-      
-      hdf5_set_directory("/data/");
+        hdf5_open(source_ptr);
 
-      hsize_t fdims[3]  = {npk * nk, npj * nj, npi * ni};
-      hsize_t fstart[3] = {pk * nk, pj * nj, pi * ni};
-      hsize_t fcount[3] = {nk, nj, ni};
-      hsize_t mdims[3]  = {nk, nj, ni};
-      hsize_t mstart[3] = {0, 0, 0};
-      
-      hdf5_read_array(values, "data_raw", 3, fdims, fstart, fcount,
-		      mdims, mstart, H5T_NATIVE_DOUBLE);
+        hdf5_set_directory("/data/");
 
-      hdf5_close();
+        hsize_t fdims[3]  = {npk * nk, npj * nj, npi * ni};
+        hsize_t fstart[3] = {pk * nk, pj * nj, pi * ni};
+        hsize_t fcount[3] = {nk, nj, ni};
+        hsize_t mdims[3]  = {nk, nj, ni};
+        hsize_t mstart[3] = {0, 0, 0};
+
+        hdf5_read_array(values, "data_raw", 3, fdims, fstart, fcount,
+                mdims, mstart, H5T_NATIVE_DOUBLE);
+
+        hdf5_close();
+      }
     }
     
-    HYPRE_StructVectorSetBoxValues(b, ilower, iupper, values);
-		
-    for (i = 0; i < nvalues; i ++)
-      values[i] = 0.0;
-    HYPRE_StructVectorSetBoxValues(x, ilower, iupper, values);
-		
-    free(values);
-		
-    HYPRE_StructVectorAssemble(b);
-    HYPRE_StructVectorAssemble(x);
-  }
+  HYPRE_StructVectorSetBoxValues(b, ilower, iupper, values);
+
+  for (i = 0; i < nvalues; i ++)
+    values[i] = 0.0;
+  HYPRE_StructVectorSetBoxValues(x, ilower, iupper, values);
+
+  free(values);
+
+  HYPRE_StructVectorAssemble(b);
+  HYPRE_StructVectorAssemble(x);
 
   check_t = clock();
   if ( (myid == 0) && (timer) )
@@ -577,8 +602,8 @@ int main (int argc, char *argv[])
   }
 
   /* Matrix - vector multiplication */
-  if (solver_id == 2) {
-    HYPRE_StructMatrixMatvec(1.0, A, b, 0.0, x);
+  if ( (solver_id == 2) || (solver_id == 3) ){
+    HYPRE_StructMatrixMatvec(-1.0, A, b, 0.0, x);
   }
 
   check_t = clock();
@@ -742,8 +767,8 @@ int main (int argc, char *argv[])
       hsize_t mstart = 0;
 
       if (myid == 0) {
-	fcount = npk * nk;
-	mdims  = npk * nk;
+        fcount = npk * nk;
+        mdims  = npk * nk;
       }
 	
       hdf5_write_array(lc_raw, "lc_raw", 1, &fdims, &fstart, &fcount,
