@@ -1,9 +1,17 @@
 #include "model_general_xy.c"
 
+void model_set_spacing_matrices(double* dx0, double* dx1, double* dx2,
+		       int ni, int nj, int nk, int npi, int npj, int npk, double x0end)
+{
+  *dx0 = (x0end - param_x0start) / (npk * nk);
+  *dx1 = (param_x1end - param_x1start) / (npj * nj);
+  *dx2 = (param_x2end - param_x2start) / (npi * ni);
+}
+
 void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* iupper,
-			      int ni, int nj, int nk, int pi, int pj, int pk, double dx0, double dx1, double dx2,
-			      double param_r12, double spatial_angle_image[ni][nj], double vx[ni][nj], double vy[ni][nj],
-			      double correlation_time_image[ni][nj], double correlation_length_image[ni][nj])
+			      int ni, int nj, int npi, int npj, int nk, int pi, int pj, int pk, double dx0, double dx1, double dx2,
+			      double param_r12, double spatial_angle_image[npi * ni][npj * nj], double vx[npi * ni][npj * nj], double vy[npi * ni][npj * nj],
+			      double correlation_time_image[npi * ni][npj * nj], double correlation_length_image[npi * ni][npj * nj], int solver_id)
 {
   int i, j;
   int nentries = NSTENCIL;
@@ -32,8 +40,8 @@ void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* 
     x1 = param_x1start + dx1 * gridj;
     x2 = param_x2start + dx2 * gridi;
 
-    param_coeff_matrices(coeff, x0, x1, x2, dx0, dx1, dx2, param_r12, ni, nj,
-                spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, gridi, gridj);
+    param_coeff_matrices(coeff, x0, x1, x2, dx0, dx1, dx2, param_r12, ni, nj, npi, npj,
+                spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, gridi, gridj, solver_id);
 
     /*0=a, 1=b, 2=c, 3=d, 4=e, 5=f, etc.*/
     /*
@@ -65,7 +73,7 @@ void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* 
     values[i+16] = coeff[3];
     values[i+17] = -coeff[4];
     values[i+18] = coeff[4];
-    
+
     /* values[i+19] = 0.; */
     /* values[i+20] = 0.; */
     /* values[i+21] = 0.; */
@@ -84,9 +92,10 @@ void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* 
 
 
 void model_set_stencil_values_matrices_spatial_angle_derivative(HYPRE_StructMatrix* A, int* ilower, int* iupper,
-			      int ni, int nj, int nk, int pi, int pj, int pk, double dx0, double dx1, double dx2,
-			      double param_r12, double spatial_angle_image[ni][nj], double vx[ni][nj], double vy[ni][nj],
-			      double correlation_time_image[ni][nj], double correlation_length_image[ni][nj], double adjoint[nk][nj][ni])
+			      int ni, int nj, int npi, int npj, int nk, int pi, int pj, int pk, double dx0, double dx1, double dx2, double param_r12,
+			      double spatial_angle_image[npi * ni][npj * nj], double vx[npi * ni][npj * nj], double vy[npi * ni][npj * nj],
+			      double correlation_time_image[npi * ni][npj * nj], double correlation_length_image[npi * ni][npj * nj],
+			      double adjoint[nk][nj][ni])
 {
   int i, j, k, i1;
   int nentries = NSTENCIL + 6;
@@ -118,7 +127,7 @@ void model_set_stencil_values_matrices_spatial_angle_derivative(HYPRE_StructMatr
         x0 = param_x0start + dx0 * gridk;
         x1 = param_x1start + dx1 * gridj;
         x2 = param_x2start + dx2 * gridi;
-        param_coeff_matrices_spatial_angle_derivative(dvalues, x0, x1, x2, dx0, dx1, dx2, param_r12, ni, nj, nk,
+        param_coeff_matrices_spatial_angle_derivative(dvalues, x0, x1, x2, dx0, dx1, dx2, param_r12, ni, nj, npi, npj, nk,
                     spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, gridi, gridj, gridk, adjoint);
 
         k = gridk * ni * nj + gridj * ni + gridi;

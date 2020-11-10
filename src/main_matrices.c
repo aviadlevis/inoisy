@@ -18,8 +18,6 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 
-#include "_hypre_utilities.h"
-#include "HYPRE_struct_ls.h"
 #include "hdf5_utils.h"
 #include "param.h"
 #include "model.h"
@@ -33,7 +31,7 @@ int main (int argc, char *argv[])
   int myid, num_procs;
   
   int ni, nj, nk, pi, pj, pk, npi, npj, npk, seed, user_filename;
-  double dx0, dx1, dx2;
+  double dx0, dx1, dx2, x0end;
   int ilower[3], iupper[3];
   
   int solver_id, maxiter, verbose;
@@ -76,6 +74,7 @@ int main (int argc, char *argv[])
   n_post = 1;
   output = 1;                  /* output data by default */
   timer  = 0;
+  x0end = 100.;
   dump   = 0;                  /* outputing intermediate steps if nrecur > 1 off by default */
   maxiter = 50;
   verbose = 2;
@@ -84,7 +83,7 @@ int main (int argc, char *argv[])
   dir_ptr   = default_dir;
   params_ptr = NULL;
   source_ptr = NULL;
-
+  int constrained = 0;
   /* Initiialize rng */
   const gsl_rng_type *T;
   gsl_rng *rstate;
@@ -128,20 +127,20 @@ int main (int argc, char *argv[])
       }
       else if ( strcmp(argv[arg_index], "-pgrid") == 0 ) {
 	arg_index++;
-	/* Make sure there are 3 arguments after -pgrid */
-	if (arg_index >= argc - 2) {
-	  check_pgrid = 1;
-	  break;
-	}
-	/* Check that pgrid agrees with assigned number of processors
-	   (Also checks for non-integer inputs) */
-	npi = atoi(argv[arg_index++]);
-	npj = atoi(argv[arg_index++]);
-	npk = atoi(argv[arg_index++]);
-	if ( num_procs != (npi * npj * npk) ) {
-	  check_pgrid = 1;
-	  break;
-	}
+        /* Make sure there are 3 arguments after -pgrid */
+        if (arg_index >= argc - 2) {
+          check_pgrid = 1;
+          break;
+        }
+        /* Check that pgrid agrees with assigned number of processors
+           (Also checks for non-integer inputs) */
+        npi = atoi(argv[arg_index++]);
+        npj = atoi(argv[arg_index++]);
+        npk = atoi(argv[arg_index++]);
+        if ( num_procs != (npi * npj * npk) ) {
+          check_pgrid = 1;
+          break;
+        }
       }
       else if ( strcmp(argv[arg_index], "-solver") == 0 ) {
 	arg_index++;
@@ -197,8 +196,12 @@ int main (int argc, char *argv[])
         verbose = atoi(argv[arg_index++]);
       }
       else if ( strcmp(argv[arg_index], "-dump") == 0 ) {
-	arg_index++;
-	dump = 1;
+	  arg_index++;
+	  dump = 1;
+      }
+      else if ( strcmp(argv[arg_index], "-constrained") == 0 ) {
+	  arg_index++;
+	  constrained = 1;
       }
       else if ( strcmp(argv[arg_index], "-nrecur") == 0 ) {
 	arg_index++;
@@ -218,6 +221,11 @@ int main (int argc, char *argv[])
 		strcmp(argv[arg_index], "--seed") == 0 ) {
 	    arg_index++;
 	    seed = model_set_gsl_seed(atoi(argv[arg_index++]), myid);
+      }
+    else if ( strcmp(argv[arg_index], "-tend") == 0 ||
+		strcmp(argv[arg_index], "--tend") == 0 ) {
+	    arg_index++;
+	    x0end = atof(argv[arg_index++]);
       }
       else {
 	    arg_index++;
@@ -240,6 +248,8 @@ int main (int argc, char *argv[])
 	printf("                           1  - SMG\n");
     printf("                           2  - Compute A*x matrix multiplication\n");
     printf("                           3  - Compute a gradient with respect to spatial angle\n");
+    printf("                           4  - LOBPG eigenvectors/values\n");
+    printf("                           5  - LOBPG eigenvectors/values with SMG preconditioner\n");
 	printf("  -v <n_pre> <n_post>    : Number of pre and post relaxations (default: 1 1).\n");
 	printf("  -dryrun                : Run solver w/o data output.\n");
 	printf("  -params <file> (or -p) : Read in parameters from <file>.\n");
@@ -251,7 +261,9 @@ int main (int argc, char *argv[])
 	printf("  -dump                  : Output intermediate steps if nrecur > 1).\n");
 	printf("  -nrecur                : Number of recursions to apply to source (default: 1).\n");
 	printf("  -seed                  : Pass a user generated seed.\n");
+	printf("  -tend                  : The end time for the simulation in terms of M. Default is 100. .\n");
     printf("  -maxiter               : Maximum number of solution iterations (default = 50).\n");
+    printf("  -constrained           : Constrain the eigenvectors y'x=0.\n");
     printf("  -verbose               : Level of verbosity (default = 2).\n");
 	printf("\n");
 	printf("Sample run:     mpirun -np 8 poisson -n 32 -nk 64 -pgrid 1 2 4 -solver 1\n");
@@ -278,7 +290,7 @@ int main (int argc, char *argv[])
   gsl_rng_set(rstate, seed);
 
   /* Set dx0, dx1, dx2 */
-  model_set_spacing(&dx0, &dx1, &dx2, ni, nj, nk, npi, npj, npk);
+  model_set_spacing_matrices(&dx0, &dx1, &dx2, ni, nj, nk, npi, npj, npk, x0end);
 
 
   // TODO check source_ptr exists and all parameters exist inside
@@ -306,11 +318,11 @@ int main (int argc, char *argv[])
      return (0);
   }
   double param_r12;
-  double spatial_angle_image[ni][nj];
-  double vx[ni][nj];
-  double vy[ni][nj];
-  double correlation_time_image[ni][nj];
-  double correlation_length_image[ni][nj];
+  double spatial_angle_image[npi * ni][npj * nj];
+  double vx[npi * ni][npj * nj];
+  double vy[npi * ni][npj * nj];
+  double correlation_time_image[npi * ni][npj * nj];
+  double correlation_length_image[npi * ni][npj * nj];
   param_read_params_matrices(params_ptr, ni, nj, pi, pj, npi, npj, &param_r12, spatial_angle_image, vx, vy,
                              correlation_time_image, correlation_length_image);
 
@@ -326,7 +338,6 @@ int main (int argc, char *argv[])
     
     HYPRE_StructGridAssemble(grid);
   }
-  
   check_t = clock();
   if ( (myid == 0) && (timer) )
     printf("Grid initialized: t = %lf\n\n",
@@ -344,7 +355,6 @@ int main (int argc, char *argv[])
   int    nvalues = ni * nj * nk;
   double *values;
   values = (double*) calloc(nvalues, sizeof(double));
-
   if (solver_id == 3) {
       hdf5_open(source_ptr);
       hdf5_set_directory("/data/");
@@ -357,7 +367,7 @@ int main (int argc, char *argv[])
       hdf5_read_array(values, "adjoint", 3, fdims, fstart, fcount,
 		      mdims, mstart, H5T_NATIVE_DOUBLE);
 
-      model_set_stencil_values_matrices_spatial_angle_derivative(&A, ilower, iupper, ni, nj, nk, pi, pj, pk, dx0, dx1,
+      model_set_stencil_values_matrices_spatial_angle_derivative(&A, ilower, iupper, ni, nj, npi, npj, nk, pi, pj, pk, dx0, dx1,
 			               dx2, param_r12, spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, values);
 
       hdf5_read_array(values, "data_raw", 3, fdims, fstart, fcount,
@@ -365,11 +375,9 @@ int main (int argc, char *argv[])
 
       hdf5_close();
   } else {
-      model_set_stencil_values_matrices(&A, ilower, iupper, ni, nj, nk, pi, pj, pk, dx0, dx1, dx2, param_r12,
-			               spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image);
+      model_set_stencil_values_matrices(&A, ilower, iupper, ni, nj, npi, npj, nk, pi, pj, pk, dx0, dx1, dx2, param_r12,
+			               spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, solver_id);
   }
-
-  
   check_t = clock();
   if ( (myid == 0) && (timer) )
     printf("Stencils values set: t = %lf\n\n",
@@ -377,14 +385,14 @@ int main (int argc, char *argv[])
 	
   /* Fix boundary conditions and assemble Struct Matrix */
   model_set_bound(&A, ni, nj, nk, pi, pj, pk, npi, npj, npk, dx0, dx1, dx2);
-  
+
   HYPRE_StructMatrixAssemble(A);
 
   check_t = clock();
   if ( (myid == 0) && (timer) )
     printf("Boundary conditions set: t = %lf\n\n",
 	   (double)(check_t - start_t) / CLOCKS_PER_SEC);
-	
+
   /* Set up Struct Vectors for b and x */
   HYPRE_StructVectorCreate(MPI_COMM_WORLD, grid, &b);
   HYPRE_StructVectorCreate(MPI_COMM_WORLD, grid, &x);
@@ -435,16 +443,16 @@ int main (int argc, char *argv[])
   if ( (myid == 0) && (user_filename == 0) ) {
     param_set_output_name(filename, ni, nj, nk, npi, npj, npk, dir_ptr);
   }
-  MPI_Bcast(&filename, 255, MPI_CHAR, 0, MPI_COMM_WORLD);  
-  
+  MPI_Bcast(&filename, 255, MPI_CHAR, 0, MPI_COMM_WORLD);
+
   // TODO create directory if doesn't exist
-  if (output) {
+  if ( (output) && (constrained == 0) ) {
     hdf5_create(filename);
     hdf5_set_directory("/");
     hdf5_make_directory("data");
     hdf5_set_directory("/data/");
   }
-  
+
   /* Set up and use a struct solver */
   if (solver_id == 0) {
     int num_iterations;
@@ -475,43 +483,43 @@ int main (int argc, char *argv[])
       HYPRE_StructPCGSolve(solver, A, b, x);
       
       if (j < num_recursions - 1) {
-	int    nvalues = ni * nj * nk;
-	double *values;
-	
-	values = (double*) calloc(nvalues, sizeof(double));
-	
-	HYPRE_StructVectorGetBoxValues(x, ilower, iupper, values);  
+        int    nvalues = ni * nj * nk;
+        double *values;
 
-	if (dump) {
-	  hsize_t fdims[3]  = {npk * nk, npj * nj, npi * ni};
-	  hsize_t fstart[3] = {pk * nk, pj * nj, pi * ni};
-	  hsize_t fcount[3] = {nk, nj, ni};
-	  hsize_t mdims[3]  = {nk, nj, ni};
-	  hsize_t mstart[3] = {0, 0, 0};
+        values = (double*) calloc(nvalues, sizeof(double));
 
-	  char step[255];
-	  sprintf(step, "step_%d", j);
-	  
-	  hdf5_write_array(values, step, 3, fdims, fstart, fcount,
-			   mdims, mstart, H5T_NATIVE_DOUBLE);
-	}
-	
-	HYPRE_StructVectorSetBoxValues(b, ilower, iupper, values);
-	
-	for (i = 0; i < nvalues; i ++)
-	  values[i] = 0.0;
-	// TODO see if setting x_new to x_old is better than 0.0
-	HYPRE_StructVectorSetBoxValues(x, ilower, iupper, values);
-	
-	// TODO create option to print successive steps
-	
-	free(values);
-	
-	HYPRE_StructVectorAssemble(b);
-	HYPRE_StructVectorAssemble(x);
+        HYPRE_StructVectorGetBoxValues(x, ilower, iupper, values);
+
+        if (dump) {
+          hsize_t fdims[3]  = {npk * nk, npj * nj, npi * ni};
+          hsize_t fstart[3] = {pk * nk, pj * nj, pi * ni};
+          hsize_t fcount[3] = {nk, nj, ni};
+          hsize_t mdims[3]  = {nk, nj, ni};
+          hsize_t mstart[3] = {0, 0, 0};
+
+          char step[255];
+          sprintf(step, "step_%d", j);
+
+          hdf5_write_array(values, step, 3, fdims, fstart, fcount,
+                   mdims, mstart, H5T_NATIVE_DOUBLE);
+        }
+
+        HYPRE_StructVectorSetBoxValues(b, ilower, iupper, values);
+
+        for (i = 0; i < nvalues; i ++)
+          values[i] = 0.0;
+        // TODO see if setting x_new to x_old is better than 0.0
+        HYPRE_StructVectorSetBoxValues(x, ilower, iupper, values);
+
+        // TODO create option to print successive steps
+
+        free(values);
+
+        HYPRE_StructVectorAssemble(b);
+        HYPRE_StructVectorAssemble(x);
       }
-      
-      /* Get some info on the run */
+
+        /* Get some info on the run */
       HYPRE_StructPCGGetNumIterations(solver, &num_iterations);
       HYPRE_StructPCGGetFinalRelativeResidualNorm(solver, &final_res_norm);
 
@@ -520,10 +528,11 @@ int main (int argc, char *argv[])
         printf("Iterations = %d\n", num_iterations);
         printf("Final Relative Residual Norm = %g\n", final_res_norm);
         printf("\n");
-      }	
+      }
     }
-    
+
     /* Clean up */
+    HYPRE_StructSMGDestroy(precond);
     HYPRE_StructPCGDestroy(solver);
   }
   
@@ -606,6 +615,127 @@ int main (int argc, char *argv[])
     HYPRE_StructMatrixMatvec(-1.0, A, b, 0.0, x);
   }
 
+  if ( (solver_id == 4) ||  (solver_id == 5)){
+
+    HYPRE_Real* eigenvalues = NULL;
+    mv_MultiVectorPtr eigenvectors = NULL;
+    HYPRE_Real* residuals;
+    utilities_FortranMatrix* residualNorms;
+
+    mv_MultiVectorPtr constraints = NULL;
+    mv_InterfaceInterpreter* interpreter;
+    HYPRE_MatvecFunctions matvec_fn;
+
+    if (myid != 0)
+        verbose = 0;
+
+    /* define an interpreter for the Struct interface */
+    interpreter = hypre_CTAlloc(mv_InterfaceInterpreter, 1, HYPRE_MEMORY_HOST);
+    HYPRE_StructSetupInterpreter( interpreter );
+    HYPRE_StructSetupMatvec(&matvec_fn);
+
+    HYPRE_LOBPCGCreate(interpreter, &matvec_fn, (HYPRE_Solver*)&solver);
+    HYPRE_LOBPCGSetMaxIter((HYPRE_Solver)solver, maxiter);
+    HYPRE_LOBPCGSetTol((HYPRE_Solver)solver, 1.0e-06);
+    HYPRE_LOBPCGSetPrintLevel((HYPRE_Solver)solver, verbose);
+
+    /* Use symmetric SMG as preconditioner */
+    if (solver_id == 5) {
+        HYPRE_LOBPCGSetPrecondUsageMode((HYPRE_Solver)solver, 1);  /*  use rhs as initial guess for inner pcg iterations */
+        HYPRE_StructSMGCreate(MPI_COMM_WORLD, &precond);
+        HYPRE_StructSMGSetMaxIter(precond, 1);
+        HYPRE_LOBPCGSetPrecond( (HYPRE_Solver)solver,
+                                (HYPRE_PtrToSolverFcn) HYPRE_StructSMGSolve,
+                                (HYPRE_PtrToSolverFcn) HYPRE_StructSMGSetup,
+                                (HYPRE_Solver)precond);
+    }
+
+    int    nvalues = ni * nj * nk;
+    double *values;
+    values = (double*) calloc(nvalues, sizeof(double));
+    hsize_t fdims[3]  = {npk * nk, npj * nj, npi * ni};
+    hsize_t fstart[3] = {pk * nk, pj * nj, pi * ni};
+    hsize_t fcount[3] = {nk, nj, ni};
+    hsize_t mdims[3]  = {nk, nj, ni};
+    hsize_t mstart[3] = {0, 0, 0};
+    char dataname[255];
+
+    if (constrained == 1) {
+
+      int num_constraints;
+      hdf5_open(source_ptr);
+      hdf5_set_directory("/params/");
+      hdf5_read_single_val(&num_constraints, "num_eigenvectors", H5T_STD_I32LE);
+      hdf5_set_directory("/data/");
+
+      mv_TempMultiVector* cns;
+      cns = hypre_TAlloc(mv_TempMultiVector, 1, HYPRE_MEMORY_HOST);
+      hypre_assert( cns != NULL );
+      cns->interpreter = interpreter;
+      cns->numVectors = num_constraints;
+      cns->vector = hypre_CTAlloc(void*,  num_constraints, HYPRE_MEMORY_HOST);
+      hypre_assert( cns->vector != NULL );
+      cns->ownsVectors = 1;
+      for (j = 0; j < num_constraints; j++) {
+        sprintf(dataname, "eigenvector_%d", j);
+        hdf5_read_array(values, dataname, 3, fdims, fstart, fcount,
+	          mdims, mstart, H5T_NATIVE_DOUBLE);
+        HYPRE_StructVector tmp_vector;
+        HYPRE_StructVectorCreate(MPI_COMM_WORLD, grid, &tmp_vector);
+	    HYPRE_StructVectorInitialize(tmp_vector);
+        HYPRE_StructVectorSetBoxValues(tmp_vector, ilower, iupper, values);
+        HYPRE_StructVectorAssemble(tmp_vector);
+        cns->vector[j] = tmp_vector;
+      }
+      hdf5_close();
+
+      if (output) {
+        hdf5_create(filename);
+        hdf5_set_directory("/");
+        hdf5_make_directory("data");
+        hdf5_set_directory("/data/");
+      }
+      constraints = mv_MultiVectorWrap(interpreter, cns, 1);
+    }
+
+    /* eigenvectors - create a multivector */
+    eigenvectors = mv_MultiVectorCreateFromSampleVector(interpreter, num_recursions, x);
+    eigenvalues = hypre_CTAlloc(HYPRE_Real, num_recursions, HYPRE_MEMORY_HOST);
+	mv_MultiVectorSetRandom( eigenvectors, 5 );
+    HYPRE_LOBPCGSetup( (HYPRE_Solver)solver, (HYPRE_Matrix)A, (HYPRE_Vector)b, (HYPRE_Vector)x );
+    HYPRE_LOBPCGSolve( (HYPRE_Solver)solver, constraints, eigenvectors, eigenvalues );
+
+    /* eigenvectors - get a pointer */
+    mv_TempMultiVector* tmp = (mv_TempMultiVector*) mv_MultiVectorGetData(eigenvectors);
+    HYPRE_StructVector* pvx = (HYPRE_StructVector*) (tmp -> vector);
+
+
+    for (j = 0; j < num_recursions; j++) {
+        HYPRE_StructVectorGetBoxValues(pvx[j], ilower, iupper, values);
+        sprintf(dataname, "eigenvector_%d", j);
+        hdf5_write_array(values, dataname, 3, fdims, fstart, fcount,
+                         mdims, mstart, H5T_NATIVE_DOUBLE);
+        sprintf(dataname, "eigenvalue_%d", j);
+        hdf5_write_single_val(&eigenvalues[j], dataname, H5T_NATIVE_DOUBLE);
+        residualNorms = HYPRE_LOBPCGResidualNorms( (HYPRE_Solver)solver );
+	    residuals = utilities_FortranMatrixValues( residualNorms );
+	    sprintf(dataname, "residual_%d", j);
+        hdf5_write_single_val(&residuals[j], dataname, H5T_NATIVE_DOUBLE);
+    }
+
+    /* clean-up */
+    if (solver_id == 5)
+        HYPRE_StructSMGDestroy(precond);
+    if (constrained == 1)
+        mv_MultiVectorDestroy( constraints );
+    HYPRE_LOBPCGDestroy((HYPRE_Solver)solver);
+    mv_MultiVectorDestroy( eigenvectors );
+    free(eigenvalues);
+    free(values);
+    hypre_TFree( interpreter , HYPRE_MEMORY_HOST);
+  }
+
+
   check_t = clock();
   if ( (myid == 0) && (timer) )
     printf("Solver finished: t = %lf\n\n",
@@ -658,9 +788,9 @@ int main (int argc, char *argv[])
     {
       int l = 0;
       for (k = 0; k < nk; k++) {
-	for (j = 0; j < nj; j++) {
-	  for (i = 0; i < ni; i++) {
-	    env[l] = param_env(raw[l], avg_raw, var_raw, i, j, k, ni, nj, nk,
+	    for (j = 0; j < nj; j++) {
+	        for (i = 0; i < ni; i++) {
+	            env[l] = param_env(raw[l], avg_raw, var_raw, i, j, k, ni, nj, nk,
 			       pi, pj, pk, dx0, dx1, dx2);
 
 	    avg_env += env[l];
@@ -782,7 +912,7 @@ int main (int argc, char *argv[])
     hdf5_set_directory("/params/");
 
     hdf5_write_single_val(&param_x0start, "x0start", H5T_IEEE_F64LE);
-    hdf5_write_single_val(&param_x0end, "x0end", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&x0end, "x0end", H5T_IEEE_F64LE);
     hdf5_write_single_val(&param_x1start, "x1start", H5T_IEEE_F64LE);
     hdf5_write_single_val(&param_x1end, "x1end", H5T_IEEE_F64LE);
     hdf5_write_single_val(&param_x2start, "x2start", H5T_IEEE_F64LE);
@@ -834,6 +964,7 @@ int main (int argc, char *argv[])
   HYPRE_StructMatrixDestroy(A);
   HYPRE_StructVectorDestroy(b);
   HYPRE_StructVectorDestroy(x);
+
 
   /* Free GSL rng state */
   gsl_rng_free(rstate);
