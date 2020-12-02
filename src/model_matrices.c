@@ -11,7 +11,7 @@ void model_set_spacing_matrices(double* dx0, double* dx1, double* dx2,
 void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* iupper,
 			      int ni, int nj, int npi, int npj, int nk, int pi, int pj, int pk, double dx0, double dx1, double dx2,
 			      double param_r12, double spatial_angle_image[npi * ni][npj * nj], double vx[npi * ni][npj * nj], double vy[npi * ni][npj * nj],
-			      double correlation_time_image[npi * ni][npj * nj], double correlation_length_image[npi * ni][npj * nj], int solver_id)
+			      double correlation_time_image[npi * ni][npj * nj], double correlation_length_image[npi * ni][npj * nj])
 {
   int i, j;
   int nentries = NSTENCIL;
@@ -41,7 +41,7 @@ void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* 
     x2 = param_x2start + dx2 * gridi;
 
     param_coeff_matrices(coeff, x0, x1, x2, dx0, dx1, dx2, param_r12, ni, nj, npi, npj,
-                spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, gridi, gridj, solver_id);
+                spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, gridi, gridj);
 
     /*0=a, 1=b, 2=c, 3=d, 4=e, 5=f, etc.*/
     /*
@@ -93,7 +93,7 @@ void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* 
 void model_set_stencil_values_matrices_squared(HYPRE_StructMatrix* A, int* ilower, int* iupper,
 			      int ni, int nj, int npi, int npj, int nk, int pi, int pj, int pk, double dx0, double dx1, double dx2,
 			      double param_r12, double spatial_angle_image[npi * ni][npj * nj], double vx[npi * ni][npj * nj], double vy[npi * ni][npj * nj],
-			      double correlation_time_image[npi * ni][npj * nj], double correlation_length_image[npi * ni][npj * nj], int solver_id)
+			      double correlation_time_image[npi * ni][npj * nj], double correlation_length_image[npi * ni][npj * nj])
 {
   int i, j;
   int nentries = NSTENCIL;
@@ -123,7 +123,7 @@ void model_set_stencil_values_matrices_squared(HYPRE_StructMatrix* A, int* ilowe
     x2 = param_x2start + dx2 * gridi;
 
     param_coeff_matrices(coeff, x0, x1, x2, dx0, dx1, dx2, param_r12, ni, nj, npi, npj,
-                spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, gridi, gridj, solver_id);
+                spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, gridi, gridj);
 
     /*0=a, 1=b, 2=c, 3=d, 4=e, 5=f, etc.*/
     /*

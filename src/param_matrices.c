@@ -170,7 +170,7 @@ static void set_dh_matrices_spatial_angle_derivative(double dhm[][3][3], double 
 
 void param_coeff_matrices(double* coeff, double x0, double x1, double x2, double dx0, double dx1, double dx2,
                  double param_r12, int ni, int nj, int npi, int npj, double spatial_angle[npi * ni][npj * nj], double vx[npi * ni][npj * nj], double vy[npi * ni][npj * nj],
-                 double correlation_time[npi * ni][npj * nj], double correlation_length[npi * ni][npj * nj], int gridi, int gridj, int solver_id)
+                 double correlation_time[npi * ni][npj * nj], double correlation_length[npi * ni][npj * nj], int gridi, int gridj)
 {
   double h[3][3], dh[3][3][3];
   set_h_matrices(h, x0, x1, x2, param_r12, spatial_angle[gridi][gridj], vx[gridi][gridj], vy[gridi][gridj], correlation_time[gridi][gridj], correlation_length[gridi][gridj]);

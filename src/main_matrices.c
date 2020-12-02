@@ -356,10 +356,13 @@ int main (int argc, char *argv[])
 	   (double)(check_t - start_t) / CLOCKS_PER_SEC);
 
   /* Initialize stencil and Struct Matrix, and set stencil values */
-  if (solver_id != 3)
-    model_create_stencil(&stencil, 3);
-  else
+  if (solver_id == 3)
     model_create_stencil_spatial_derivative(&stencil, 3);
+  else if (solver_id > 3)
+    model_create_stencil_squared(&stencil, 3);
+  else
+    model_create_stencil(&stencil, 3);
+
 
   HYPRE_StructMatrixCreate(MPI_COMM_WORLD, grid, stencil, &A);
   HYPRE_StructMatrixInitialize(A);
@@ -386,9 +389,11 @@ int main (int argc, char *argv[])
 		      mdims, mstart, H5T_NATIVE_DOUBLE);
 
       hdf5_close();
+  } else if (solver_id > 3) {
+
   } else {
       model_set_stencil_values_matrices(&A, ilower, iupper, ni, nj, npi, npj, nk, pi, pj, pk, dx0, dx1, dx2, param_r12,
-			               spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, solver_id);
+			               spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image);
   }
   check_t = clock();
   if ( (myid == 0) && (timer) )
