@@ -27,6 +27,10 @@ void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* 
 			      double param_r12, double spatial_angle_image[npi * ni][npj * nj], double vx[npi * ni][npj * nj], double vy[npi * ni][npj * nj],
 			      double correlation_time_image[npi * ni][npj * nj], double correlation_length_image[npi * ni][npj * nj], int solver_id);
 
+void model_set_stencil_values_std_scaling(HYPRE_StructMatrix* B, int* ilower, int* iupper,
+			      int ni, int nj, int npi, int npj, int nk, int pi, int pj, int pk, double param_r12,
+			      double correlation_time[npi * ni][npj * nj], double correlation_length[npi * ni][npj * nj]);
+
 void model_set_stencil_values_matrices_spatial_angle_derivative(HYPRE_StructMatrix* A, int* ilower, int* iupper,
 			      int ni, int nj, int npi, int npj, int nk, int pi, int pj, int pk, double dx0, double dx1, double dx2, double param_r12,
 			      double spatial_angle_image[npi * ni][npj * nj], double vx[npi * ni][npj * nj], double vy[npi * ni][npj * nj],

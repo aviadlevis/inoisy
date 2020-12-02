@@ -31,7 +31,7 @@ int main (int argc, char *argv[])
   int myid, num_procs;
   
   int ni, nj, nk, pi, pj, pk, npi, npj, npk, seed, user_filename;
-  double dx0, dx1, dx2, x0end;
+  double dx0, dx1, dx2, x0end, tol;
   int ilower[3], iupper[3];
   
   int solver_id, maxiter, verbose;
@@ -78,12 +78,14 @@ int main (int argc, char *argv[])
   dump   = 0;                  /* outputing intermediate steps if nrecur > 1 off by default */
   maxiter = 50;
   verbose = 2;
+  tol = 1.0e-06;
   num_recursions = 1;
   char* default_dir = ".";     /* output in current directory by default */
   dir_ptr   = default_dir;
   params_ptr = NULL;
   source_ptr = NULL;
   int constrained = 0;
+  int vinit = 0;
   /* Initiialize rng */
   const gsl_rng_type *T;
   gsl_rng *rstate;
@@ -114,19 +116,19 @@ int main (int argc, char *argv[])
     arg_index = 0;
     while (arg_index < argc) {
       if ( strcmp(argv[arg_index], "-ni") == 0 ) {
-	arg_index++;
-	ni = atoi(argv[arg_index++]);
+	    arg_index++;
+	    ni = atoi(argv[arg_index++]);
       }
       else if ( strcmp(argv[arg_index], "-nj") == 0 ) {
-	arg_index++;
-	nj = atoi(argv[arg_index++]);
+	    arg_index++;
+	    nj = atoi(argv[arg_index++]);
       }
       else if ( strcmp(argv[arg_index], "-nk") == 0 ) {
-	arg_index++;
-	nk = atoi(argv[arg_index++]);
+	    arg_index++;
+	    nk = atoi(argv[arg_index++]);
       }
       else if ( strcmp(argv[arg_index], "-pgrid") == 0 ) {
-	arg_index++;
+	    arg_index++;
         /* Make sure there are 3 arguments after -pgrid */
         if (arg_index >= argc - 2) {
           check_pgrid = 1;
@@ -143,38 +145,38 @@ int main (int argc, char *argv[])
         }
       }
       else if ( strcmp(argv[arg_index], "-solver") == 0 ) {
-	arg_index++;
-	solver_id = atoi(argv[arg_index++]);
+	    arg_index++;
+	    solver_id = atoi(argv[arg_index++]);
       }
       else if ( strcmp(argv[arg_index], "-v") == 0 ) {
-	arg_index++;
-	n_pre = atoi(argv[arg_index++]);
-	n_post = atoi(argv[arg_index++]);
+	    arg_index++;
+	    n_pre = atoi(argv[arg_index++]);
+	    n_post = atoi(argv[arg_index++]);
       } // TODO check that there are two integers following -v
       else if ( strcmp(argv[arg_index], "-dryrun") == 0 ) {
-	arg_index++;
-	output = 0;
+	    arg_index++;
+	    output = 0;
       }
       else if ( strcmp(argv[arg_index], "-ps") == 0 ||
 		strcmp(argv[arg_index], "-sp") == 0 ) {
-	arg_index++;
-	params_ptr = argv[arg_index];
-	source_ptr = argv[arg_index++];
+	    arg_index++;
+	    params_ptr = argv[arg_index];
+	    source_ptr = argv[arg_index++];
       }
       else if ( strcmp(argv[arg_index], "-p") == 0 ||
 		strcmp(argv[arg_index], "-params") == 0 ) {
-	arg_index++;
-	params_ptr = argv[arg_index++];
+	    arg_index++;
+	    params_ptr = argv[arg_index++];
       }
       else if ( strcmp(argv[arg_index], "-s") == 0 ||
 		strcmp(argv[arg_index], "-source") == 0 ) {
-	arg_index++;
-	source_ptr = argv[arg_index++];
+	    arg_index++;
+	    source_ptr = argv[arg_index++];
       }
       else if ( strcmp(argv[arg_index], "-o") == 0 ||
 		strcmp(argv[arg_index], "-output") == 0 ) {
-	arg_index++;
-	dir_ptr = argv[arg_index++];
+	    arg_index++;
+	    dir_ptr = argv[arg_index++];
       } // TODO check that directory exists before solving rather than later
         // TODO remove trailing '/' if it exists
     else if ( strcmp(argv[arg_index], "-f") == 0 ||
@@ -184,8 +186,8 @@ int main (int argc, char *argv[])
 	    user_filename = 1;
       }
       else if ( strcmp(argv[arg_index], "-timer") == 0 ) {
-	arg_index++;
-	timer = 1;
+	    arg_index++;
+	    timer = 1;
       }
       else if ( strcmp(argv[arg_index], "-maxiter") == 0 ) {
         arg_index++;
@@ -196,16 +198,24 @@ int main (int argc, char *argv[])
         verbose = atoi(argv[arg_index++]);
       }
       else if ( strcmp(argv[arg_index], "-dump") == 0 ) {
-	  arg_index++;
-	  dump = 1;
+	    arg_index++;
+	    dump = 1;
       }
       else if ( strcmp(argv[arg_index], "-constrained") == 0 ) {
-	  arg_index++;
-	  constrained = 1;
+        arg_index++;
+	    constrained = 1;
+      }
+      else if ( strcmp(argv[arg_index], "-vinit") == 0 ) {
+	    arg_index++;
+	    vinit = 1;
+      }
+      else if ( strcmp(argv[arg_index], "-tol") == 0 ) {
+	    arg_index++;
+	    tol = atof(argv[arg_index++]);
       }
       else if ( strcmp(argv[arg_index], "-nrecur") == 0 ) {
-	arg_index++;
-	num_recursions = atoi(argv[arg_index++]);
+	    arg_index++;
+	    num_recursions = atoi(argv[arg_index++]);
 	if (num_recursions < 1) {
 	  print_usage = 1;
 	  break;
@@ -214,8 +224,8 @@ int main (int argc, char *argv[])
       else if ( strcmp(argv[arg_index], "help")   == 0 ||
 		strcmp(argv[arg_index], "-help")  == 0 ||
 		strcmp(argv[arg_index], "--help") == 0 ) {
-	print_usage = 1;
-	break;
+	    print_usage = 1;
+	    break;
       }
     else if ( strcmp(argv[arg_index], "-seed") == 0 ||
 		strcmp(argv[arg_index], "--seed") == 0 ) {
@@ -263,7 +273,9 @@ int main (int argc, char *argv[])
 	printf("  -seed                  : Pass a user generated seed.\n");
 	printf("  -tend                  : The end time for the simulation in terms of M. Default is 100. .\n");
     printf("  -maxiter               : Maximum number of solution iterations (default = 50).\n");
+    printf("  -tol                   : Solver stop criteria (default = 1e-6).\n");
     printf("  -constrained           : Constrain the eigenvectors y'x=0.\n");
+    printf("  -vinit                 : Initialize vector modes. \n");
     printf("  -verbose               : Level of verbosity (default = 2).\n");
 	printf("\n");
 	printf("Sample run:     mpirun -np 8 poisson -n 32 -nk 64 -pgrid 1 2 4 -solver 1\n");
@@ -446,7 +458,7 @@ int main (int argc, char *argv[])
   MPI_Bcast(&filename, 255, MPI_CHAR, 0, MPI_COMM_WORLD);
 
   // TODO create directory if doesn't exist
-  if ( (output) && (constrained == 0) ) {
+  if ( (output) && (constrained == 0) && (vinit == 0)) {
     hdf5_create(filename);
     hdf5_set_directory("/");
     hdf5_make_directory("data");
@@ -459,7 +471,7 @@ int main (int argc, char *argv[])
 
     HYPRE_StructPCGCreate(MPI_COMM_WORLD, &solver);
     HYPRE_StructPCGSetMaxIter(solver, maxiter );
-    HYPRE_StructPCGSetTol(solver, 1.0e-06 );
+    HYPRE_StructPCGSetTol(solver, tol );
     HYPRE_StructPCGSetTwoNorm(solver, 1 );
     HYPRE_StructPCGSetRelChange(solver, 0 );
     HYPRE_StructPCGSetPrintLevel(solver, verbose ); /* print each CG iteration */
@@ -542,7 +554,7 @@ int main (int argc, char *argv[])
     HYPRE_StructSMGCreate(MPI_COMM_WORLD, &solver);
     HYPRE_StructSMGSetMemoryUse(solver, 0);
     HYPRE_StructSMGSetMaxIter(solver, maxiter);
-    HYPRE_StructSMGSetTol(solver, 1.0e-06);
+    HYPRE_StructSMGSetTol(solver, tol);
     HYPRE_StructSMGSetRelChange(solver, 0);
     HYPRE_StructSMGSetNumPreRelax(solver, n_pre);
     HYPRE_StructSMGSetNumPostRelax(solver, n_post);
@@ -619,6 +631,7 @@ int main (int argc, char *argv[])
 
     HYPRE_Real* eigenvalues = NULL;
     mv_MultiVectorPtr eigenvectors = NULL;
+    mv_MultiVectorPtr initvectors = NULL;
     HYPRE_Real* residuals;
     utilities_FortranMatrix* residualNorms;
 
@@ -636,7 +649,7 @@ int main (int argc, char *argv[])
 
     HYPRE_LOBPCGCreate(interpreter, &matvec_fn, (HYPRE_Solver*)&solver);
     HYPRE_LOBPCGSetMaxIter((HYPRE_Solver)solver, maxiter);
-    HYPRE_LOBPCGSetTol((HYPRE_Solver)solver, 1.0e-06);
+    HYPRE_LOBPCGSetTol((HYPRE_Solver)solver, tol);
     HYPRE_LOBPCGSetPrintLevel((HYPRE_Solver)solver, verbose);
 
     /* Use symmetric SMG as preconditioner */
@@ -665,7 +678,7 @@ int main (int argc, char *argv[])
       int num_constraints;
       hdf5_open(source_ptr);
       hdf5_set_directory("/params/");
-      hdf5_read_single_val(&num_constraints, "num_eigenvectors", H5T_STD_I32LE);
+      hdf5_read_single_val(&num_constraints, "num_constraints", H5T_STD_I32LE);
       hdf5_set_directory("/data/");
 
       mv_TempMultiVector* cns;
@@ -677,7 +690,7 @@ int main (int argc, char *argv[])
       hypre_assert( cns->vector != NULL );
       cns->ownsVectors = 1;
       for (j = 0; j < num_constraints; j++) {
-        sprintf(dataname, "eigenvector_%d", j);
+        sprintf(dataname, "constraint_%d", j);
         hdf5_read_array(values, dataname, 3, fdims, fstart, fcount,
 	          mdims, mstart, H5T_NATIVE_DOUBLE);
         HYPRE_StructVector tmp_vector;
@@ -688,20 +701,76 @@ int main (int argc, char *argv[])
         cns->vector[j] = tmp_vector;
       }
       hdf5_close();
+      constraints = mv_MultiVectorWrap(interpreter, cns, 1);
+    }
 
-      if (output) {
+    int num_vectors;
+	if (vinit == 1) {
+      int num_init;
+      hdf5_open(source_ptr);
+      hdf5_set_directory("/params/");
+      hdf5_read_single_val(&num_init, "num_init", H5T_STD_I32LE);
+      hdf5_set_directory("/data/");
+
+      num_vectors = (num_recursions > num_init) ? num_recursions : num_init;
+
+      if (num_recursions > num_init) {
+        initvectors = mv_MultiVectorCreateFromSampleVector(interpreter, num_recursions, x);
+	    mv_MultiVectorSetRandom( initvectors, seed );
+      }
+
+      mv_TempMultiVector* cns;
+      cns = hypre_TAlloc(mv_TempMultiVector, 1, HYPRE_MEMORY_HOST);
+      hypre_assert( cns != NULL );
+      cns->interpreter = interpreter;
+      cns->numVectors = num_vectors;
+      cns->vector = hypre_CTAlloc(void*, num_vectors, HYPRE_MEMORY_HOST);
+      hypre_assert( cns->vector != NULL );
+      cns->ownsVectors = 1;
+      for (j = 0; j < num_vectors; j++) {
+        if (j < num_init) {
+            sprintf(dataname, "eigenvector_%d", j);
+            hdf5_read_array(values, dataname, 3, fdims, fstart, fcount,
+                  mdims, mstart, H5T_NATIVE_DOUBLE);
+            HYPRE_StructVector tmp_vector;
+            HYPRE_StructVectorCreate(MPI_COMM_WORLD, grid, &tmp_vector);
+            HYPRE_StructVectorInitialize(tmp_vector);
+            HYPRE_StructVectorSetBoxValues(tmp_vector, ilower, iupper, values);
+            HYPRE_StructVectorAssemble(tmp_vector);
+            cns->vector[j] = tmp_vector;
+        } else {
+            mv_TempMultiVector* tmp = (mv_TempMultiVector*) mv_MultiVectorGetData(initvectors);
+            cns->vector[j] = tmp -> vector[j-num_init];
+        }
+      }
+      hdf5_close();
+      eigenvectors = mv_MultiVectorWrap(interpreter, cns, 1);
+	} else {
+	    num_vectors = num_recursions;
+	    /* eigenvectors - create a multivector */
+        eigenvectors = mv_MultiVectorCreateFromSampleVector(interpreter, num_recursions, x);
+	    mv_MultiVectorSetRandom( eigenvectors, seed );
+	}
+
+    if (((constrained==1) || (vinit==1)) && (output)) {
         hdf5_create(filename);
         hdf5_set_directory("/");
         hdf5_make_directory("data");
         hdf5_set_directory("/data/");
       }
-      constraints = mv_MultiVectorWrap(interpreter, cns, 1);
-    }
 
-    /* eigenvectors - create a multivector */
-    eigenvectors = mv_MultiVectorCreateFromSampleVector(interpreter, num_recursions, x);
-    eigenvalues = hypre_CTAlloc(HYPRE_Real, num_recursions, HYPRE_MEMORY_HOST);
-	mv_MultiVectorSetRandom( eigenvectors, 5 );
+    /* Setup B (diagonal) matrix for std-scaling*/
+    HYPRE_StructMatrix  B;
+    HYPRE_StructMatrixCreate(MPI_COMM_WORLD, grid, stencil, &B);
+    HYPRE_StructMatrixInitialize(B);
+    model_set_stencil_values_std_scaling(&B, ilower, iupper, ni, nj, npi, npj, nk, pi, pj, pk, param_r12,
+			               correlation_time_image, correlation_length_image);
+    model_set_bound(&B, ni, nj, nk, pi, pj, pk, npi, npj, npk, dx0, dx1, dx2);
+    HYPRE_StructMatrixAssemble(B);
+    HYPRE_LOBPCGSetupB((HYPRE_Solver)solver,  (HYPRE_Matrix)B, (HYPRE_Vector)x);
+
+
+    eigenvalues = hypre_CTAlloc(HYPRE_Real, num_vectors, HYPRE_MEMORY_HOST);
     HYPRE_LOBPCGSetup( (HYPRE_Solver)solver, (HYPRE_Matrix)A, (HYPRE_Vector)b, (HYPRE_Vector)x );
     HYPRE_LOBPCGSolve( (HYPRE_Solver)solver, constraints, eigenvectors, eigenvalues );
 
@@ -709,8 +778,7 @@ int main (int argc, char *argv[])
     mv_TempMultiVector* tmp = (mv_TempMultiVector*) mv_MultiVectorGetData(eigenvectors);
     HYPRE_StructVector* pvx = (HYPRE_StructVector*) (tmp -> vector);
 
-
-    for (j = 0; j < num_recursions; j++) {
+    for (j = 0; j < num_vectors; j++) {
         HYPRE_StructVectorGetBoxValues(pvx[j], ilower, iupper, values);
         sprintf(dataname, "eigenvector_%d", j);
         hdf5_write_array(values, dataname, 3, fdims, fstart, fcount,
@@ -728,11 +796,14 @@ int main (int argc, char *argv[])
         HYPRE_StructSMGDestroy(precond);
     if (constrained == 1)
         mv_MultiVectorDestroy( constraints );
+    if (vinit==1)
+        mv_MultiVectorDestroy( initvectors );
+
+    free(values);
+    free( eigenvalues );
     HYPRE_LOBPCGDestroy((HYPRE_Solver)solver);
     mv_MultiVectorDestroy( eigenvectors );
-    free(eigenvalues);
-    free(values);
-    hypre_TFree( interpreter , HYPRE_MEMORY_HOST);
+    free( interpreter );
   }
 
 
@@ -965,10 +1036,12 @@ int main (int argc, char *argv[])
   HYPRE_StructVectorDestroy(b);
   HYPRE_StructVectorDestroy(x);
 
-
   /* Free GSL rng state */
   gsl_rng_free(rstate);
-  
+
+  /* Finalize HYPRE */
+  HYPRE_Finalize();
+
   /* Finalize MPI */
   MPI_Finalize();
   
