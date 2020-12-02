@@ -766,29 +766,30 @@ int main (int argc, char *argv[])
       }
 
     /* Setup B (diagonal) matrix for std-scaling*/
-    /* HYPRE_StructMatrix  B;
+    HYPRE_StructMatrix  B;
     HYPRE_StructMatrixCreate(MPI_COMM_WORLD, grid, stencil, &B);
     HYPRE_StructMatrixInitialize(B);
     model_set_stencil_values_std_scaling(&B, ilower, iupper, ni, nj, npi, npj, nk, pi, pj, pk, param_r12,
 			               correlation_time_image, correlation_length_image);
     model_set_bound(&B, ni, nj, nk, pi, pj, pk, npi, npj, npk, dx0, dx1, dx2);
     HYPRE_StructMatrixAssemble(B);
-    HYPRE_LOBPCGSetupB((HYPRE_Solver)solver,  (HYPRE_Matrix)B, (HYPRE_Vector)x); */
+    HYPRE_LOBPCGSetupB((HYPRE_Solver)solver,  (HYPRE_Matrix)B, (HYPRE_Vector)x);
 
-    printf("ASD3\n");
     eigenvalues = hypre_CTAlloc(HYPRE_Real, num_vectors, HYPRE_MEMORY_HOST);
     HYPRE_LOBPCGSetup( (HYPRE_Solver)solver, (HYPRE_Matrix)A, (HYPRE_Vector)b, (HYPRE_Vector)x );
     HYPRE_LOBPCGSolve( (HYPRE_Solver)solver, constraints, eigenvectors, eigenvalues );
-    printf("ASD4\n");
+
     /* eigenvectors - get a pointer */
     mv_TempMultiVector* tmp = (mv_TempMultiVector*) mv_MultiVectorGetData(eigenvectors);
     HYPRE_StructVector* pvx = (HYPRE_StructVector*) (tmp -> vector);
 
-    printf("ASD5\n");
     for (j = 0; j < num_vectors; j++) {
-        printf("ASD6.%d\n", j);
         HYPRE_StructVectorGetBoxValues(pvx[j], ilower, iupper, values);
         sprintf(dataname, "eigenvector_%d", j);
+
+        for (int jj = 0; jj < nvalues; jj++) {
+            printf("ASD: %d, %f,\n", j, values[j]);
+        }
         hdf5_write_array(values, dataname, 3, fdims, fstart, fcount,
                          mdims, mstart, H5T_NATIVE_DOUBLE);
         sprintf(dataname, "eigenvalue_%d", j);
@@ -798,7 +799,6 @@ int main (int argc, char *argv[])
 	    sprintf(dataname, "residual_%d", j);
         hdf5_write_single_val(&residuals[j], dataname, H5T_NATIVE_DOUBLE);
     }
-    printf("ASD7\n");
     /* clean-up */
     if (solver_id == 5)
         HYPRE_StructSMGDestroy(precond);
@@ -806,9 +806,8 @@ int main (int argc, char *argv[])
         mv_MultiVectorDestroy( constraints );
     if (vinit==1)
         mv_MultiVectorDestroy( initvectors );
-    printf("ASD8\n");
+
     HYPRE_LOBPCGDestroy((HYPRE_Solver)solver);
-    printf("ASD9\n");
     free(values);
     free( eigenvalues );
     // HYPRE_StructMatrixDestroy(B);

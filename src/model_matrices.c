@@ -163,9 +163,9 @@ void model_set_stencil_values_matrices_squared(HYPRE_StructMatrix* A, int* ilowe
     for (ii = 0; ii < 5; ii++)
         for (jj = 0; jj < 5; jj++)
             for (kk = 0; kk < 5; kk++) {
-                if (((abs(ii) > 1) && (abs(jj) > 1) && (abs(kk) > 0)) ||
-                    ((abs(ii) > 0) && (abs(jj) > 1) && (abs(kk) > 1)) ||
-                    ((abs(ii) > 1) && (abs(jj) > 0) && (abs(kk) > 1)))
+                if (((abs(ii-2) > 1) && (abs(jj-2) > 1) && (abs(kk-2) > 0)) ||
+                    ((abs(ii-2) > 0) && (abs(jj-2) > 1) && (abs(kk-2) > 1)) ||
+                    ((abs(ii-2) > 1) && (abs(jj-2) > 0) && (abs(kk-2) > 1)))
                         continue;
                 values_sqr[i+entry] = 0;
                 for (u = 0; u < 3; u++)
@@ -331,7 +331,6 @@ void model_create_stencil_squared(HYPRE_StructStencil* stencil, int dim)
         offsets[0] = i;
         offsets[1] = j;
         offsets[2] = k;
-        printf("%d: %d, %d, %d\n", entry, i, j, k);
         HYPRE_StructStencilSetElement(*stencil, entry, offsets);
         entry++;
       }
