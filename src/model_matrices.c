@@ -90,108 +90,6 @@ void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* 
   free(values);
 }
 
-void model_set_stencil_values_matrices_squared(HYPRE_StructMatrix* A, int* ilower, int* iupper,
-			      int ni, int nj, int npi, int npj, int nk, int pi, int pj, int pk, double dx0, double dx1, double dx2,
-			      double param_r12, double spatial_angle_image[npi * ni][npj * nj], double vx[npi * ni][npj * nj], double vy[npi * ni][npj * nj],
-			      double correlation_time_image[npi * ni][npj * nj], double correlation_length_image[npi * ni][npj * nj])
-{
-  int i, j, entry, idx, idx_t;
-  int ii, jj, kk, u, v, w;
-  int nentries = 93;
-  int nvalues = nentries * ni * nj * nk;
-  double *values;
-  double *values_sqr;
-  int stencil_indices[93];
-  int mapping[3][3][3] = {{{-1, 14, -1},
-                           {11, 5, 12},
-                           {-1, 13, -1}},
-                          {{10, 4, 9},
-                           {1,  0, 2},
-                           {7,  3, 8}},
-                          {{-1, 18, -1},
-                           {15, 6, 16},
-                           {-1, 17, -1}}};
-
-  values = (double*) calloc(NSTENCIL, sizeof(double));
-  values_sqr = (double*) calloc(nvalues, sizeof(double));
-
-  for (j = 0; j < nentries; j++)
-    stencil_indices[j] = j;
-
-  for (i = 0; i < nvalues; i += nentries) {
-    double x0, x1, x2;
-    double coeff[10];
-    int gridi, gridj, gridk, temp;
-
-    temp = i / nentries;
-    gridk = temp / (ni * nj);
-    gridj = (temp - ni * nj * gridk) / ni;
-    gridi = temp - ni * nj * gridk + (pi - gridj) * ni;
-    gridj += pj * nj;
-    gridk += pk * nk;
-
-    x0 = param_x0start + dx0 * gridk;
-    x1 = param_x1start + dx1 * gridj;
-    x2 = param_x2start + dx2 * gridi;
-
-    param_coeff_matrices(coeff, x0, x1, x2, dx0, dx1, dx2, param_r12, ni, nj, npi, npj,
-                spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, gridi, gridj);
-
-    values[0]  = coeff[9];
-    values[1]  = coeff[0] - coeff[6];
-    values[2]  = coeff[0] + coeff[6];
-    values[3]  = coeff[2] - coeff[7];
-    values[4]  = coeff[2] + coeff[7];
-    values[5]  = coeff[5] - coeff[8];
-    values[6]  = coeff[5] + coeff[8];
-    values[7]  = coeff[1];
-    values[8]  = -coeff[1];
-    values[9]  = coeff[1];
-    values[10] = -coeff[1];
-    values[11] = coeff[3];
-    values[12] = -coeff[3];
-    values[13] = coeff[4];
-    values[14] = -coeff[4];
-    values[15] = -coeff[3];
-    values[16] = coeff[3];
-    values[17] = -coeff[4];
-    values[18] = coeff[4];
-
-    /* Compute kernel squared values by correlating the 19 pts stencil with itself to generate a
-       5x5x5 dimensional stencil with 93 pts */
-    entry = 0;
-    for (ii = 0; ii < 5; ii++)
-        for (jj = 0; jj < 5; jj++)
-            for (kk = 0; kk < 5; kk++) {
-                if (((abs(ii-2) > 1) && (abs(jj-2) > 1) && (abs(kk-2) > 0)) ||
-                    ((abs(ii-2) > 0) && (abs(jj-2) > 1) && (abs(kk-2) > 1)) ||
-                    ((abs(ii-2) > 1) && (abs(jj-2) > 0) && (abs(kk-2) > 1)))
-                        continue;
-                values_sqr[i+entry] = 0;
-                for (u = 0; u < 3; u++)
-                    for (v = 0; v < 3; v++)
-                        for (w = 0; w < 3; w++) {
-                            idx = mapping[w][v][u];
-                            if ((ii+u-2 < 3) && (ii+u-2 >= 0) && (jj+v-2< 3) &&
-                                (jj+v-2 >= 0) && (kk+w-2< 3) && (kk+w-2 >= 0)) {
-                                    idx_t = mapping[kk+w-2][jj+v-2][ii+u-2];
-                                    if ((idx >= 0) && (idx_t >= 0))
-                                        values_sqr[i+entry] += values[idx] * values[idx_t];
-                                }
-                        }
-                entry++;
-
-            }
-  }
-
-  HYPRE_StructMatrixSetBoxValues(*A, ilower, iupper, nentries,
-				 stencil_indices, values_sqr);
-
-  free(values);
-  free(values_sqr);
-}
-
-
 
 void model_set_stencil_values_std_scaling(HYPRE_StructMatrix* B, int* ilower, int* iupper,
 			      int ni, int nj, int npi, int npj, int nk, int pi, int pj, int pk, double param_r12,
@@ -201,12 +99,12 @@ void model_set_stencil_values_std_scaling(HYPRE_StructMatrix* B, int* ilower, in
   int nentries = 1;
   int nvalues = ni * nj * nk;
   double *values;
-  int stencil_indices[1] = {46};
+  int stencil_indices[1] = {0};
   double factor, scaling;
 
   values = (double*) calloc(nvalues, sizeof(double));
 
-  for (i = 0; i < nvalues; i ++) {
+  for (i = 0; i < nvalues; i++) {
     int gridi, gridj, gridk, temp;
 
     temp = i ;
@@ -222,7 +120,6 @@ void model_set_stencil_values_std_scaling(HYPRE_StructMatrix* B, int* ilower, in
     scaling = fmax( sqrt(scaling), 1.E-10 );
     values[i] = scaling;
   }
-
   HYPRE_StructMatrixSetBoxValues(*B, ilower, iupper, nentries, stencil_indices, values);
 
   free(values);

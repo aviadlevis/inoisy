@@ -343,21 +343,21 @@ void param_set_source(double* values, gsl_rng* rstate, int ni, int nj, int nk,
 		double scaling;
 
 		gridk = i / (ni * nj);
-    gridj = (i - ni * nj * gridk) / ni;
-    gridi = i - ni * nj * gridk + (pi - gridj) * ni;
-    gridj += pj * nj;
-    gridk += pk * nk;
+        gridj = (i - ni * nj * gridk) / ni;
+        gridi = i - ni * nj * gridk + (pi - gridj) * ni;
+        gridj += pj * nj;
+        gridk += pk * nk;
 
-    x0 = param_x0start + dx0 + gridk;
-    x1 = param_x1start + dx1 * gridj;
-    x2 = param_x2start + dx2 * gridi;
+        x0 = param_x0start + dx0 + gridk;
+        x1 = param_x1start + dx1 * gridj;
+        x2 = param_x2start + dx2 * gridi;
 
-    //    double r = sqrt(x1 * x1 + x2 * x2);
+        //    double r = sqrt(x1 * x1 + x2 * x2);
 
-    scaling = factor * corr_time(x0, x1, x2) * corr_length(x0, x1, x2)
-      * param_r12 * corr_length(x0, x1, x2);
-    scaling = fmax( sqrt(scaling), SMALL );
-    
-    values[i] = gsl_ran_gaussian_ziggurat(rstate, 1.) * scaling;
+        scaling = factor * corr_time(x0, x1, x2) * corr_length(x0, x1, x2)
+          * param_r12 * corr_length(x0, x1, x2);
+        scaling = fmax( sqrt(scaling), SMALL );
+
+        values[i] = gsl_ran_gaussian_ziggurat(rstate, 1.) * scaling;
   }
 }
