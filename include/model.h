@@ -54,4 +54,6 @@ double model_area(int i, int j, int k, int ni, int nj, int nk,
 
 void model_set_spacing_matrices(double* dx0, double* dx1, double* dx2,
 		       int ni, int nj, int nk, int npi, int npj, int npk, double x0end);
+
+HYPRE_Real utilities_FortranMatrixMinValue( utilities_FortranMatrix* mtx );
 #endif

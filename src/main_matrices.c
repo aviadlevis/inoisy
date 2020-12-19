@@ -634,6 +634,8 @@ int main (int argc, char *argv[])
     mv_MultiVectorPtr eigenvectors = NULL;
     mv_MultiVectorPtr initvectors = NULL;
     HYPRE_Real* residuals;
+    HYPRE_Real min_residual;
+    utilities_FortranMatrix* residualNormsHistory;
     utilities_FortranMatrix* residualNorms;
 
     mv_MultiVectorPtr constraints = NULL;
@@ -779,25 +781,35 @@ int main (int argc, char *argv[])
     mv_TempMultiVector* tmp = (mv_TempMultiVector*) mv_MultiVectorGetData(eigenvectors);
     HYPRE_StructVector* pvx = (HYPRE_StructVector*) (tmp -> vector);
 
+    /* write eigenvectors to file */
+    residualNorms = HYPRE_LOBPCGResidualNorms( (HYPRE_Solver)solver );
+    residuals = utilities_FortranMatrixValues( residualNorms );
+    residualNormsHistory = HYPRE_LOBPCGResidualNormsHistory( (HYPRE_Solver)solver );
+
     for (j = 0; j < num_vectors; j++) {
         HYPRE_StructVectorGetBoxValues(pvx[j], ilower, iupper, values);
         sprintf(dataname, "eigenvector_%d", j);
         hdf5_write_array(values, dataname, 3, fdims, fstart, fcount,
                          mdims, mstart, H5T_NATIVE_DOUBLE);
-        sprintf(dataname, "eigenvalue_%d", j);
+         sprintf(dataname, "eigenvalue_%d", j);
         hdf5_write_single_val(&eigenvalues[j], dataname, H5T_NATIVE_DOUBLE);
-        residualNorms = HYPRE_LOBPCGResidualNorms( (HYPRE_Solver)solver );
-	    residuals = utilities_FortranMatrixValues( residualNorms );
-	    sprintf(dataname, "residual_%d", j);
+        sprintf(dataname, "residual_%d", j);
         hdf5_write_single_val(&residuals[j], dataname, H5T_NATIVE_DOUBLE);
     }
+
+
+    min_residual = utilities_FortranMatrixMinValue(residualNormsHistory);
+    sprintf(dataname, "min_residual");
+    hdf5_write_single_val(&min_residual, dataname, H5T_NATIVE_DOUBLE);
+
+    hdf5_close();
     /* clean-up */
     if (solver_id == 5)
         HYPRE_StructSMGDestroy(precond);
 
     HYPRE_LOBPCGDestroy((HYPRE_Solver)solver);
     free(values);
-    free( eigenvalues );
+    free(eigenvalues);
     // HYPRE_StructMatrixDestroy(B);
     mv_MultiVectorDestroy( eigenvectors );
     free( interpreter );
@@ -810,7 +822,7 @@ int main (int argc, char *argv[])
 	   (double)(check_t - start_t) / CLOCKS_PER_SEC);	
   
   /* Output data */
-  if (output) {
+  if ((output) && (solver_id < 4)) {
     /* Get the local raw data */
     int nvalues = ni * nj * nk;
     
