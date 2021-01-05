@@ -86,6 +86,8 @@ int main (int argc, char *argv[])
   source_ptr = NULL;
   int constrained = 0;
   int vinit = 0;
+  int gevb = 0;
+
   /* Initiialize rng */
   const gsl_rng_type *T;
   gsl_rng *rstate;
@@ -201,6 +203,10 @@ int main (int argc, char *argv[])
 	    arg_index++;
 	    dump = 1;
       }
+      else if ( strcmp(argv[arg_index], "-gevb") == 0 ) {
+	    arg_index++;
+	    gevb = 1;
+      }
       else if ( strcmp(argv[arg_index], "-constrained") == 0 ) {
         arg_index++;
 	    constrained = 1;
@@ -276,6 +282,7 @@ int main (int argc, char *argv[])
     printf("  -tol                   : Solver stop criteria (default = 1e-6).\n");
     printf("  -constrained           : Constrain the eigenvectors y'x=0.\n");
     printf("  -vinit                 : Initialize vector modes. \n");
+    printf("  -gevb                  : Solve a generalized eigenvalue problem using the std scaling as diagonal B matrix. \n");
     printf("  -verbose               : Level of verbosity (default = 2).\n");
 	printf("\n");
 	printf("Sample run:     mpirun -np 8 poisson -n 32 -nk 64 -pgrid 1 2 4 -solver 1\n");
@@ -629,7 +636,7 @@ int main (int argc, char *argv[])
   }
 
   if ( (solver_id == 4) ||  (solver_id == 5)){
-
+    HYPRE_StructMatrix B;
     HYPRE_Real* eigenvalues = NULL;
     mv_MultiVectorPtr eigenvectors = NULL;
     mv_MultiVectorPtr initvectors = NULL;
@@ -762,16 +769,15 @@ int main (int argc, char *argv[])
       }
 
     /* Setup B (diagonal) matrix for std-scaling*/
-    /*
-    HYPRE_StructMatrix  B;
-    HYPRE_StructMatrixCreate(MPI_COMM_WORLD, grid, stencil, &B);
-    HYPRE_StructMatrixSetSymmetric(B, 1);
-    HYPRE_StructMatrixInitialize(B);
-    model_set_stencil_values_std_scaling(&B, ilower, iupper, ni, nj, npi, npj, nk, pi, pj, pk, param_r12,
-			               correlation_time_image, correlation_length_image);
-    HYPRE_StructMatrixAssemble(B);
-    HYPRE_LOBPCGSetupB((HYPRE_Solver)solver, (HYPRE_Matrix)B, (HYPRE_Vector)x);
-    */
+    if (gevb) {
+        HYPRE_StructMatrixCreate(MPI_COMM_WORLD, grid, stencil, &B);
+        HYPRE_StructMatrixSetSymmetric(B, 1);
+        HYPRE_StructMatrixInitialize(B);
+        model_set_stencil_values_std_scaling(&B, ilower, iupper, ni, nj, npi, npj, nk, pi, pj, pk, param_r12,
+                               correlation_time_image, correlation_length_image);
+        HYPRE_StructMatrixAssemble(B);
+        HYPRE_LOBPCGSetupB((HYPRE_Solver)solver, (HYPRE_Matrix)B, (HYPRE_Vector)x);
+    }
 
     eigenvalues = hypre_CTAlloc(HYPRE_Real, num_vectors, HYPRE_MEMORY_HOST);
     HYPRE_LOBPCGSetup( (HYPRE_Solver)solver, (HYPRE_Matrix)A, (HYPRE_Vector)b, (HYPRE_Vector)x );
@@ -810,7 +816,7 @@ int main (int argc, char *argv[])
     HYPRE_LOBPCGDestroy((HYPRE_Solver)solver);
     free(values);
     free(eigenvalues);
-    // HYPRE_StructMatrixDestroy(B);
+    if (gevb) HYPRE_StructMatrixDestroy(B);
     mv_MultiVectorDestroy( eigenvectors );
     free( interpreter );
   }
