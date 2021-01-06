@@ -643,6 +643,7 @@ int main (int argc, char *argv[])
     HYPRE_Real* residuals;
     HYPRE_Real min_residual;
     utilities_FortranMatrix* residualNormsHistory;
+    utilities_FortranMatrix* eigenvaluesHistory;
     utilities_FortranMatrix* residualNorms;
 
     mv_MultiVectorPtr constraints = NULL;
@@ -791,6 +792,7 @@ int main (int argc, char *argv[])
     residualNorms = HYPRE_LOBPCGResidualNorms( (HYPRE_Solver)solver );
     residuals = utilities_FortranMatrixValues( residualNorms );
     residualNormsHistory = HYPRE_LOBPCGResidualNormsHistory( (HYPRE_Solver)solver );
+    eigenvaluesHistory = HYPRE_LOBPCGEigenvaluesHistory( (HYPRE_Solver)solver );
 
     for (j = 0; j < num_vectors; j++) {
         HYPRE_StructVectorGetBoxValues(pvx[j], ilower, iupper, values);
@@ -804,7 +806,7 @@ int main (int argc, char *argv[])
     }
 
 
-    min_residual = utilities_FortranMatrixMinValue(residualNormsHistory);
+    min_residual = utilities_FortranMatrixMinValue(residualNormsHistory, eigenvaluesHistory);
     sprintf(dataname, "min_residual");
     hdf5_write_single_val(&min_residual, dataname, H5T_NATIVE_DOUBLE);
 

@@ -234,11 +234,12 @@ void model_create_stencil_squared(HYPRE_StructStencil* stencil, int dim)
 
 }
 
-HYPRE_Real utilities_FortranMatrixMinValue( utilities_FortranMatrix* mtx ) {
+HYPRE_Real utilities_FortranMatrixMinValue( utilities_FortranMatrix* mtx, utilities_FortranMatrix* eigs) {
 
    HYPRE_BigInt i, j, jump;
    HYPRE_BigInt h, w;
    HYPRE_Real* p;
+   HYPRE_Real* e;
    HYPRE_Real minVal;
 
    hypre_assert( mtx != NULL );
@@ -250,11 +251,12 @@ HYPRE_Real utilities_FortranMatrixMinValue( utilities_FortranMatrix* mtx ) {
 
    minVal = mtx->value[0];
 
-   for ( j = 0, p = mtx->value; j < w; j++ ) {
-      for ( i = 0; i < h; i++, p++ )
-         if ( ( *p < minVal ) && ( *p > 0 ) )
+   for ( j = 0, p = mtx->value, e = eigs->value; j < w; j++ ) {
+      for ( i = 0; i < h; i++, p++, e++)
+         if ( ( *p < minVal ) && ( *p > 0 ) && ( *e > 0 ) )
             minVal = *p;
       p += jump;
+      e += jump;
    }
 
    return minVal;
