@@ -32,11 +32,11 @@ int main (int argc, char *argv[])
   
   int myid, num_procs;
   
-  int ni, nj, nk, pi, pj, pk, npi, npj, npk, seed, user_filename;
+  int ni, nj, nk, pi, pj, pk, npi, npj, npk;
   double dx0, dx1, dx2;
   int ilower[3], iupper[3];
   
-  int solver_id, maxiter, verbose;
+  int solver_id;
   int n_pre, n_post;
   
   clock_t start_t = clock();
@@ -76,30 +76,28 @@ int main (int argc, char *argv[])
   n_post = 1;
   output = 1;                  /* output data by default */
   timer  = 0;
-  dump   = 0;                  /* outputing intermediate steps if nrecur > 1 off by default */
-  maxiter = 50;
-  verbose = 2;
+  dump   = 0;                  /* outputing intermediate steps if nrecur > 1
+				  off by default */
   num_recursions = 1;
   char* default_dir = ".";     /* output in current directory by default */
   dir_ptr   = default_dir;
   params_ptr = NULL;
   source_ptr = NULL;
-
+  
   /* Initiialize rng */
   const gsl_rng_type *T;
   gsl_rng *rstate;
   gsl_rng_env_setup();
   T = gsl_rng_default;
   rstate = gsl_rng_alloc(T);
-  seed = model_set_gsl_seed(gsl_rng_default_seed, myid);
-
+  gsl_rng_set(rstate, model_set_gsl_seed(gsl_rng_default_seed, myid));
+  
   /* Parse command line */
   {
-    user_filename = 0;
     int arg_index   = 0;
     int print_usage = 0;
     int check_pgrid = 0;
-
+    
     while (arg_index < argc) {
       if ( strcmp(argv[arg_index], "-n") == 0 ) {
 	arg_index++;
@@ -178,23 +176,9 @@ int main (int argc, char *argv[])
 	dir_ptr = argv[arg_index++];
       } // TODO check that directory exists before solving rather than later
         // TODO remove trailing '/' if it exists
-    else if ( strcmp(argv[arg_index], "-f") == 0 ||
-		strcmp(argv[arg_index], "-filename") == 0 )  {
-	    arg_index++;
-	    sprintf(filename, "%s/%s", dir_ptr, argv[arg_index++]);
-	    user_filename = 1;
-      }
       else if ( strcmp(argv[arg_index], "-timer") == 0 ) {
 	arg_index++;
 	timer = 1;
-      }
-      else if ( strcmp(argv[arg_index], "-maxiter") == 0 ) {
-        arg_index++;
-        maxiter = atoi(argv[arg_index++]);
-      }
-      else if ( strcmp(argv[arg_index], "-verbose") == 0 ) {
-        arg_index++;
-        verbose = atoi(argv[arg_index++]);
       }
       else if ( strcmp(argv[arg_index], "-dump") == 0 ) {
 	arg_index++;
@@ -214,13 +198,8 @@ int main (int argc, char *argv[])
 	print_usage = 1;
 	break;
       }
-    else if ( strcmp(argv[arg_index], "-seed") == 0 ||
-		strcmp(argv[arg_index], "--seed") == 0 ) {
-	    arg_index++;
-	    seed = model_set_gsl_seed(atoi(argv[arg_index++]), myid);
-      }
       else {
-	    arg_index++;
+	arg_index++;
       }
     }
     
@@ -244,13 +223,9 @@ int main (int argc, char *argv[])
 	printf("  -source <file> (or -s) : Read in source field from <file.\n");
 	printf("                           Can be combined by using -ps or -sp\n");
 	printf("  -output <dir> (or -o)  : Output data in directory <dir> (default: ./).\n");
-	printf("  -filename (or -f)      : Output data filename. (default: <model_name_datetime.h5>).\n");
 	printf("  -timer                 : Time each step on processor zero.\n");
 	printf("  -dump                  : Output intermediate steps if nrecur > 1).\n");
 	printf("  -nrecur                : Number of recursions to apply to source (default: 1).\n");
-	printf("  -seed                  : Pass a user generated seed.\n");
-    printf("  -maxiter               : Maximum number of solution iterations (default = 50).\n");
-    printf("  -verbose               : Level of verbosity (default = 2).\n");
 	printf("\n");
 	printf("Sample run:     mpirun -np 8 poisson -n 32 -nk 64 -pgrid 1 2 4 -solver 1\n");
 	printf("                mpiexec -n 4 ./disk -n 128 -nj 32 -pgrid 2 2 1 -solver 0\n");
@@ -272,8 +247,6 @@ int main (int argc, char *argv[])
       return (0);
     }	
   }
-
-  gsl_rng_set(rstate, seed);
 
   /* Set dx0, dx1, dx2 */
   model_set_spacing(&dx0, &dx1, &dx2, ni, nj, nk, npi, npj, npk);
@@ -394,9 +367,10 @@ int main (int argc, char *argv[])
 	   (double)(check_t - start_t) / CLOCKS_PER_SEC);
 
   /* Setup output file */
-  if ( (myid == 0) && (user_filename == 0) ) {
+  
+  if (myid == 0)
     param_set_output_name(filename, ni, nj, nk, npi, npj, npk, dir_ptr);
-  }
+
   MPI_Bcast(&filename, 255, MPI_CHAR, 0, MPI_COMM_WORLD);  
   
   // TODO create directory if doesn't exist
@@ -412,11 +386,11 @@ int main (int argc, char *argv[])
     int num_iterations;
 
     HYPRE_StructPCGCreate(MPI_COMM_WORLD, &solver);
-    HYPRE_StructPCGSetMaxIter(solver, maxiter );
+    HYPRE_StructPCGSetMaxIter(solver, 50 );
     HYPRE_StructPCGSetTol(solver, 1.0e-06 );
     HYPRE_StructPCGSetTwoNorm(solver, 1 );
     HYPRE_StructPCGSetRelChange(solver, 0 );
-    HYPRE_StructPCGSetPrintLevel(solver, verbose ); /* print each CG iteration */
+    HYPRE_StructPCGSetPrintLevel(solver, 2 ); /* print each CG iteration */
     HYPRE_StructPCGSetLogging(solver, 1);
     
     /* Use symmetric SMG as preconditioner */
@@ -494,14 +468,14 @@ int main (int argc, char *argv[])
     
     HYPRE_StructSMGCreate(MPI_COMM_WORLD, &solver);
     HYPRE_StructSMGSetMemoryUse(solver, 0);
-    HYPRE_StructSMGSetMaxIter(solver, maxiter);
+    HYPRE_StructSMGSetMaxIter(solver, 50);
     HYPRE_StructSMGSetTol(solver, 1.0e-06);
     HYPRE_StructSMGSetRelChange(solver, 0);
     HYPRE_StructSMGSetNumPreRelax(solver, n_pre);
     HYPRE_StructSMGSetNumPostRelax(solver, n_post);
     /* Logging must be on to get iterations and residual norm info below */
     // TODO fix SMG logging
-    HYPRE_StructSMGSetPrintLevel(solver, verbose);
+    HYPRE_StructSMGSetPrintLevel(solver, 2);
     HYPRE_StructSMGSetLogging(solver, 1);
 
     /* Setup and solve */
@@ -550,11 +524,11 @@ int main (int argc, char *argv[])
       HYPRE_StructSMGGetNumIterations(solver, &num_iterations);
       HYPRE_StructSMGGetFinalRelativeResidualNorm(solver, &final_res_norm);
       
-      if ( (myid == 0) && (verbose > 0) ){
-        printf("\n");
-        printf("Iterations = %d\n", num_iterations);
-        printf("Final Relative Residual Norm = %g\n", final_res_norm);
-        printf("\n");
+      if (myid == 0) {
+	printf("\n");
+	printf("Iterations = %d\n", num_iterations);
+	printf("Final Relative Residual Norm = %g\n", final_res_norm);
+	printf("\n");
       }	
     }
     
@@ -753,7 +727,7 @@ int main (int argc, char *argv[])
     hdf5_write_single_val(&ni, "ni", H5T_STD_I32LE);
     hdf5_write_single_val(&nj, "nj", H5T_STD_I32LE);
     hdf5_write_single_val(&nk, "nk", H5T_STD_I32LE);
-    hdf5_write_single_val(&seed, "seed", H5T_STD_U64LE);
+    hdf5_write_single_val(&gsl_rng_default_seed, "seed", H5T_STD_U64LE);
 
     /* Write additional parameters contained in param_<model_name>.c */
     param_write_params(filename);
@@ -777,6 +751,9 @@ int main (int argc, char *argv[])
     if ( (myid == 0) && (timer) )
       printf("Data output: t = %lf\n\n",
 	     (double)(check_t - start_t) / CLOCKS_PER_SEC);
+
+    if (myid == 0)
+      printf("%s\n\n", filename);
     
     free(raw);
     free(env);

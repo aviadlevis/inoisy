@@ -39,9 +39,4 @@ void param_set_source(double* values, gsl_rng* rstate, int ni, int nj, int nk,
 		      int pi, int pj, int pk, int npi, int npj, int npk,
 		      double dx0, double dx1, double dx2, int nrecur);
 
-
-void param_coeff_matrices_spatial_angle_derivative(double* dvalues, double x0, double x1, double x2, double dx0, double dx1, double dx2,
-                 double param_r12, int ni, int nj, int nk, int npi, int npj, double spatial_angle[npi * ni][npj * nj], double vx[npi * ni][npj * nj], double vy[npi * ni][npj * nj],
-                 double correlation_time[npi * ni][npj * nj], double correlation_length[npi * ni][npj * nj], int gridi, int gridj, int gridk, double adjoint[nk][nj][ni]);
-
 #endif

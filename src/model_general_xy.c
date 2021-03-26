@@ -89,7 +89,6 @@ void model_set_stencil_values(HYPRE_StructMatrix* A, int* ilower, int* iupper,
     temp = i / nentries;
     gridk = temp / (ni * nj);
     gridj = (temp - ni * nj * gridk) / ni;
-    gridj = (temp - ni * nj * gridk) / ni;
     gridi = temp - ni * nj * gridk + (pi - gridj) * ni;
     gridj += pj * nj;
     gridk += pk * nk;
