@@ -1,17 +1,19 @@
 #include "model_general_xy.c"
 
-void model_set_spacing_matrices(double* dx0, double* dx1, double* dx2,
-		       int ni, int nj, int nk, int npi, int npj, int npk, double x0end)
+void model_set_spacing_matrices(double* dx0, double* dx1, double* dx2, int ni, int nj, int nk, int npi,
+		        int npj, int npk, double x0end, double x1start, double x1end, double x2start, double x2end)
 {
   *dx0 = (x0end - param_x0start) / (npk * nk);
-  *dx1 = (param_x1end - param_x1start) / (npj * nj);
-  *dx2 = (param_x2end - param_x2start) / (npi * ni);
+  *dx1 = (x1end - x1start) / (npj * nj);
+  *dx2 = (x2end - x2start) / (npi * ni);
 }
 
-void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* iupper,
-			      int ni, int nj, int npi, int npj, int nk, int pi, int pj, int pk, double dx0, double dx1, double dx2,
-			      double param_r12, double spatial_angle_image[npi * ni][npj * nj], double vx[npi * ni][npj * nj], double vy[npi * ni][npj * nj],
-			      double correlation_time_image[npi * ni][npj * nj], double correlation_length_image[npi * ni][npj * nj])
+void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* iupper, int ni, int nj, int npi,
+			      int npj, int nk, int pi, int pj, int pk, double dx0, double dx1, double dx2,
+			      double x1start, double x2start, double param_r12, double spatial_angle_image[npi * ni][npj * nj],
+			      double vx[npi * ni][npj * nj], double vy[npi * ni][npj * nj],
+			      double correlation_time_image[npi * ni][npj * nj],
+			      double correlation_length_image[npi * ni][npj * nj])
 {
   int i, j;
   int nentries = NSTENCIL;
@@ -37,8 +39,8 @@ void model_set_stencil_values_matrices(HYPRE_StructMatrix* A, int* ilower, int* 
     gridk += pk * nk;
     
     x0 = param_x0start + dx0 * gridk;			
-    x1 = param_x1start + dx1 * gridj;
-    x2 = param_x2start + dx2 * gridi;
+    x1 = x1start + dx1 * gridj;
+    x2 = x2start + dx2 * gridi;
 
     param_coeff_matrices(coeff, x0, x1, x2, dx0, dx1, dx2, param_r12, ni, nj, npi, npj,
                 spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image, gridi, gridj);

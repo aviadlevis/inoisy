@@ -50,5 +50,7 @@ default: all
 
 clean:
 	$(RM) -r $(OBJ_DIR)
+
 distclean: clean
+	$(RM) -f matrices
 	$(RM) $(EXE)

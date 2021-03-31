@@ -31,7 +31,7 @@ int main (int argc, char *argv[])
   int myid, num_procs;
   
   int ni, nj, nk, pi, pj, pk, npi, npj, npk, seed, user_filename;
-  double dx0, dx1, dx2, x0end, tol;
+  double dx0, dx1, dx2, x0end, x1start, x2start, x1end, x2end, tol;
   int ilower[3], iupper[3];
   
   int solver_id, maxiter, verbose;
@@ -75,6 +75,10 @@ int main (int argc, char *argv[])
   output = 1;                  /* output data by default */
   timer  = 0;
   x0end = 100.;
+  x1start = -10.;
+  x2start = -10.;
+  x1end = 10.;
+  x2end = 10.;
   dump   = 0;                  /* outputing intermediate steps if nrecur > 1 off by default */
   maxiter = 50;
   verbose = 2;
@@ -228,6 +232,26 @@ int main (int argc, char *argv[])
 	    arg_index++;
 	    x0end = atof(argv[arg_index++]);
       }
+    else if ( strcmp(argv[arg_index], "-x1start") == 0 ||
+		strcmp(argv[arg_index], "--x1start") == 0 ) {
+	    arg_index++;
+	    x1start = atof(argv[arg_index++]);
+      }
+    else if ( strcmp(argv[arg_index], "-x1end") == 0 ||
+		strcmp(argv[arg_index], "--x1end") == 0 ) {
+	    arg_index++;
+	    x1end = atof(argv[arg_index++]);
+      }
+    else if ( strcmp(argv[arg_index], "-x2start") == 0 ||
+		strcmp(argv[arg_index], "--x2start") == 0 ) {
+	    arg_index++;
+	    x2start = atof(argv[arg_index++]);
+      }
+    else if ( strcmp(argv[arg_index], "-x2end") == 0 ||
+		strcmp(argv[arg_index], "--x2end") == 0 ) {
+	    arg_index++;
+	    x2end = atof(argv[arg_index++]);
+      }
       else {
 	    arg_index++;
       }
@@ -258,17 +282,14 @@ int main (int argc, char *argv[])
 	printf("  -dump                  : Output intermediate steps if nrecur > 1).\n");
 	printf("  -nrecur                : Number of recursions to apply to source (default: 1).\n");
 	printf("  -seed                  : Pass a user generated seed.\n");
-	printf("  -tend                  : The end time for the simulation in terms of M. Default is 100. .\n");
+	printf("  -tend                  : The end time for the simulation in terms of M. Default is 100.\n");
+	printf("  -x1start               : Initial grid point for x1 dimension. Default is -10.\n");
+	printf("  -x2start               : Initial grid point for x2 dimension. Default is -10.\n");
+	printf("  -x1end                 : Final grid point for x1 dimension. Default is 10.\n");
+	printf("  -x2end                 : Final grid point for x2 dimension. Default is 10.\n");
     printf("  -maxiter               : Maximum number of solution iterations (default = 50).\n");
     printf("  -tol                   : Solver stop criteria (default = 1e-6).\n");
     printf("  -verbose               : Level of verbosity (default = 2).\n");
-	printf("\n");
-	printf("Sample run:     mpirun -np 8 poisson -n 32 -nk 64 -pgrid 1 2 4 -solver 1\n");
-	printf("                mpiexec -n 4 ./disk -n 128 -nj 32 -pgrid 2 2 1 -solver 0\n");
-	printf("\n");
-	printf("GSL_RNG_SEED=${RANDOM} mpiexec -n 4 ./general_xy -n 64 -nk 128 -pgrid 1 1 4\n");
-	printf("-solver 0 -timer -nrecur 1 -o output/\n");
-	printf("\n");
       }
       MPI_Finalize();
       return (0);
@@ -287,8 +308,9 @@ int main (int argc, char *argv[])
   gsl_rng_set(rstate, seed);
 
   /* Set dx0, dx1, dx2 */
-  model_set_spacing_matrices(&dx0, &dx1, &dx2, ni, nj, nk, npi, npj, npk, x0end);
+  model_set_spacing_matrices(&dx0, &dx1, &dx2, ni, nj, nk, npi, npj, npk, x0end, x1start, x1end, x2start, x2end);
 
+  printf("ADS: %f, %f, %f, %f, %f,  %f\n\n", dx1, dx2, x1start, x2start, x1end, x2end);
 
   // TODO check source_ptr exists and all parameters exist inside
   
@@ -346,8 +368,8 @@ int main (int argc, char *argv[])
   HYPRE_StructMatrixCreate(MPI_COMM_WORLD, grid, stencil, &A);
   HYPRE_StructMatrixInitialize(A);
 
-  model_set_stencil_values_matrices(&A, ilower, iupper, ni, nj, npi, npj, nk, pi, pj, pk, dx0, dx1, dx2, param_r12,
-			               spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image);
+  model_set_stencil_values_matrices(&A, ilower, iupper, ni, nj, npi, npj, nk, pi, pj, pk, dx0, dx1, dx2, x1start,
+                    x2start, param_r12, spatial_angle_image, vx, vy, correlation_time_image, correlation_length_image);
 
   check_t = clock();
   if ( (myid == 0) && (timer) )
@@ -763,10 +785,10 @@ int main (int argc, char *argv[])
 
     hdf5_write_single_val(&param_x0start, "x0start", H5T_IEEE_F64LE);
     hdf5_write_single_val(&x0end, "x0end", H5T_IEEE_F64LE);
-    hdf5_write_single_val(&param_x1start, "x1start", H5T_IEEE_F64LE);
-    hdf5_write_single_val(&param_x1end, "x1end", H5T_IEEE_F64LE);
-    hdf5_write_single_val(&param_x2start, "x2start", H5T_IEEE_F64LE);
-    hdf5_write_single_val(&param_x2end, "x2end", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&x1start, "x1start", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&x1end, "x1end", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&x2start, "x2start", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&x2end, "x2end", H5T_IEEE_F64LE);
     hdf5_write_single_val(&dx0, "dx0", H5T_IEEE_F64LE);
     hdf5_write_single_val(&dx1, "dx1", H5T_IEEE_F64LE);
     hdf5_write_single_val(&dx2, "dx2", H5T_IEEE_F64LE);
