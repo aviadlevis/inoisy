@@ -309,9 +309,7 @@ int main (int argc, char *argv[])
 
   /* Set dx0, dx1, dx2 */
   model_set_spacing_matrices(&dx0, &dx1, &dx2, ni, nj, nk, npi, npj, npk, x0end, x1start, x1end, x2start, x2end);
-
-  printf("ADS: %f, %f, %f, %f, %f,  %f\n\n", dx1, dx2, x1start, x2start, x1end, x2end);
-
+  
   // TODO check source_ptr exists and all parameters exist inside
   
   /* Figure out processor grid (npi x npj x npk). Processor position 
