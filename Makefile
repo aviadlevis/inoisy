@@ -5,10 +5,15 @@ $(info HYPRE_DIR not defined, trying '/usr/local/hypre')
 HYPRE_DIR = /usr/local/hypre
 endif
 
+ifndef INOISY_DIR
+$(info INOISY_DIR not defined, trying current directory)
+INOISY_DIR = $(CURRDIR)
+endif
+
 # Local directories
-INC_DIR = $(CURDIR)/include
-SRC_DIR = $(CURDIR)/src
-OBJ_DIR = $(CURDIR)/obj
+INC_DIR = $(INOISY_DIR)/include
+SRC_DIR = $(INOISY_DIR)/src
+OBJ_DIR = $(INOISY_DIR)/obj
 
 # Compiling and linking options
 COPTS     = -g -Wall
@@ -35,7 +40,7 @@ $(EXE): %: $(OBJ)
 	$(CC) $(LDFLAGS) $^ $(LFLAGS) -o $@
 
 matrices: %: $(OBJM)
-	$(CC) $(LDFLAGS) $^ $(LFLAGS) -o $@
+	$(CC) $(LDFLAGS) $^ $(LFLAGS) -o $(INOISY_DIR)/$@
 
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
