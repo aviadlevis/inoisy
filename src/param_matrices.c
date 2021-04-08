@@ -49,8 +49,8 @@ int max(int x, int y)
 static void set_u0_matrices(double* u0, double x0, double x1, double x2, double vx, double vy)
 {
   u0[0] = 1.;
-  u0[1] = vy;
-  u0[2] = vx;
+  u0[1] = vx;
+  u0[2] = vy;
 }
 
 /* unit vectors in direction of major and minor axes */
