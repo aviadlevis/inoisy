@@ -271,6 +271,7 @@ int main (int argc, char *argv[])
 	printf("  -solver <ID>           : solver ID\n");
 	printf("                           0  - PCG with SMG precond (default)\n");
 	printf("                           1  - SMG\n");
+    printf("                           2  - Compute A*x matrix multiplication\n");
 	printf("  -v <n_pre> <n_post>    : Number of pre and post relaxations (default: 1 1).\n");
 	printf("  -dryrun                : Run solver w/o data output.\n");
 	printf("  -params <file> (or -p) : Read in parameters from <file>.\n");
@@ -604,6 +605,11 @@ int main (int argc, char *argv[])
     
     /* Clean up */
     HYPRE_StructSMGDestroy(solver);
+  }
+
+  /* Matrix - vector multiplication: compute the differential operators on an input*/
+  if (solver_id == 2) {
+    HYPRE_StructMatrixMatvec(1.0, A, b, 0.0, x);
   }
 
   check_t = clock();
